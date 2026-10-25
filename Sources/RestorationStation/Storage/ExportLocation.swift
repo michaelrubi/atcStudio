@@ -1,0 +1,32 @@
+import Foundation
+
+/// `~/Movies/ATC Studio Exports/YYYY-MM-DD_<Sanitized_Title>/`
+public enum ExportLocation {
+    public static var root: URL {
+        URL.moviesDirectory.appending(path: "ATC Studio Exports", directoryHint: .isDirectory)
+    }
+
+    /// A folder for this run that does not exist yet. Adds `_2`, `_3`, … rather than overwrite.
+    public static func newFolder(title: String, date: Date = Date(), root: URL = root) -> URL {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: date) // local day, not UTC
+        let day = String(format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!)
+        let base = "\(day)_\(sanitize(title))"
+        var name = base
+        var n = 2
+        while FileManager.default.fileExists(atPath: root.appending(path: name).path) {
+            name = "\(base)_\(n)"
+            n += 1
+        }
+        return root.appending(path: name, directoryHint: .isDirectory)
+    }
+
+    /// Letters and digits kept, everything else becomes `_`, runs collapsed, max 60 characters.
+    public static func sanitize(_ title: String) -> String {
+        let mapped = title.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? Character($0) : "_" }
+        let collapsed = String(mapped)
+            .split(separator: "_", omittingEmptySubsequences: true)
+            .joined(separator: "_")
+        let trimmed = String(collapsed.prefix(60))
+        return trimmed.isEmpty ? "Episode" : trimmed
+    }
+}

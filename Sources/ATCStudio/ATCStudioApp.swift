@@ -40,10 +40,7 @@ struct ContentView: View {
     var body: some View {
         TabView {
             Tab("Workspace", systemImage: "waveform") {
-                ContentUnavailableView(
-                    "Drop audio here",
-                    systemImage: "square.and.arrow.down",
-                    description: Text("The drag-and-drop workspace arrives in Milestone 2."))
+                WorkspaceView()
             }
             Tab("Templates", systemImage: "rectangle.stack") {
                 TemplatesView()

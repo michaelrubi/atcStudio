@@ -29,9 +29,10 @@ Package.swift
 Sources/
   ATCStudio/                 SwiftUI app (window, tabs, views)
   RestorationStation/
-    Storage/                 GRDB models, migrations, DatabaseManager
+    Audio/                   FFmpegRunner, MixPlan, AudioCompositionService
+    Storage/                 GRDB models, migrations, DatabaseManager, assets
 Tests/
-  RestorationStationTests/   Database tests (Swift Testing)
+  RestorationStationTests/   Database, mix-plan, and real-ffmpeg tests (Swift Testing)
 scripts/                     Release scripts (Milestone 5)
 ```
 
@@ -43,7 +44,7 @@ scripts/                     Release scripts (Milestone 5)
 ## Status
 
 - [x] Milestone 1: project, SQLite storage, Templates and Speakers tabs
-- [ ] Milestone 2: FFmpeg mixing and auto-ducking
+- [x] Milestone 2: FFmpeg mixing and auto-ducking
 - [ ] Milestone 3: Desert Ant ML pipeline
 - [ ] Milestone 4: speaker mapping and export
 - [ ] Milestone 5: release DMG

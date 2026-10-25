@@ -56,3 +56,36 @@ Checked against `desert-ant-core` v4.1.0 source on 2026-10-25.
     `~/Library/Application Support/ATCStudio/Assets/<UUID>/<file name>`, and the template
     stores that path. Copies no saved template uses are deleted when a template is saved
     or deleted. The original file is never touched.
+
+## Milestone 2 choices (as built)
+
+15. **Two-pass `loudnorm` and `AVURLAsset` durations** (items 10 and 11) are in place.
+    No `ffprobe` is needed.
+16. **Exact intro timing.** VO starts when the lead-in ends, at the same moment the
+    music starts to duck. Main audio starts at
+    `introOffset = lead-in + intro VO length + swell time` (default 3 + VO + 1.5 s).
+    The 2 s crossfade starts at that point. Music rises from duck to swell in 0.5 s.
+17. **Bumper edge cases.** No intro VO: music plays for the lead-in, then crossfades.
+    VO but no intro music: VO, then main, with no crossfade. No outro VO: the music swells
+    when main ends.
+18. **Progress comes from `-progress pipe:1`** (stdout), not from parsing stderr. Stderr
+    is kept for errors and the loudness numbers.
+19. **Speed.** A 60 minute file takes about 2 min 50 s on the M4 (two full passes).
+    Expect longer on the M2.
+20. **Each run makes a new export folder.** `YYYY-MM-DD_<file name>/`, local date, with
+    `_2`, `_3`, … added instead of overwriting.
+
+## Main-track trim (added after Milestone 2 review)
+
+21. **Auto cut.** After a file is dropped, Restoration Station scans its loudness every
+    50 ms (about 4 s for a 60 minute file). The cut threshold is 35% of the way from the
+    room-noise level to the speech level. It keeps 0.5 s before the first sound and
+    1.0 s after the last. One click or bump does not count as the start.
+22. **Manual cut.** The Workspace shows the whole recording, plus a close-up of each cut.
+    You can drag or click a cut, nudge it by ±0.1 s or ±1 s, and use Hear Start or
+    Hear End (5 s of audio). Auto Cut and Keep Whole File reset the cuts.
+23. **Limit.** The auto cut finds sound, not meaning. Pre-service chatter
+    ("are we recording?") counts as sound, so move the cut by hand for that.
+    Milestone 3 could suggest a start from the first transcribed words.
+24. **Milestone 3 timestamps.** ML timestamps are in source-file seconds. Convert them with
+    `CompositionResult.masterTime(forSourceTime:)` = `introOffset + (t - trim.start)`.

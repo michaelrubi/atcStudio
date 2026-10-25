@@ -87,3 +87,21 @@ import Testing
         #expect(throws: DatabaseManagerError.emptyName) { try db.upsertSpeaker(named: "") }
     }
 }
+
+@Suite struct ExportLocationTests {
+    @Test func sanitizesTitles() {
+        #expect(ExportLocation.sanitize("Sunday 10/25: Hope & Grace!") == "Sunday_10_25_Hope_Grace")
+        #expect(ExportLocation.sanitize("   ") == "Episode")
+    }
+
+    @Test func neverReusesAFolder() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "atc-export-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let date = Date(timeIntervalSince1970: 1_761_350_400) // 2025-10-25 UTC
+        let first = ExportLocation.newFolder(title: "Hope", date: date, root: root)
+        #expect(first.lastPathComponent.hasSuffix("_Hope"))
+        try FileManager.default.createDirectory(at: first, withIntermediateDirectories: true)
+        #expect(ExportLocation.newFolder(title: "Hope", date: date, root: root).lastPathComponent
+            == first.lastPathComponent + "_2")
+    }
+}
