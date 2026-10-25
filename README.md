@@ -1,5 +1,7 @@
 # ATC Studio
 
+<p align="center"><img src="assets/branding/atc_studio_logo.svg" alt="ATC Studio" width="240"></p>
+
 [![Build and test](https://github.com/michaelrubi/atcStudio/actions/workflows/ci.yml/badge.svg)](https://github.com/michaelrubi/atcStudio/actions/workflows/ci.yml)
 
 As The Church Studio: drop in raw Sunday sermon or podcast audio and get a mastered,
@@ -39,6 +41,7 @@ Sources/
     Storage/                 GRDB models, migrations, DatabaseManager, assets
 Tests/
   RestorationStationTests/   Database, mix-plan, and real-ffmpeg tests (Swift Testing)
+assets/branding/             Logo, icon, and wordmark SVGs (placeholders)
 scripts/                     setup_signing.sh (signing secrets), release scripts (Milestone 5)
 ```
 

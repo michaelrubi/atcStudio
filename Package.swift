@@ -16,7 +16,8 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "ATCStudio",
-            dependencies: ["RestorationStation"]
+            dependencies: ["RestorationStation"],
+            resources: [.copy("Resources/AppIcon.svg")]
         ),
         .target(
             name: "RestorationStation",

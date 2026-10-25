@@ -37,6 +37,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Needed when launched as a bare SwiftPM executable (`swift run`) rather than a .app bundle.
         NSApp.setActivationPolicy(.regular)
+        // A bare executable has no Info.plist icon, so set the Dock (and About panel) icon here.
+        if let url = Bundle.module.url(forResource: "AppIcon", withExtension: "svg"),
+           let icon = NSImage(contentsOf: url) {
+            NSApp.applicationIconImage = icon
+        }
         NSApp.activate()
     }
 

@@ -1,0 +1,103 @@
+<svg width="1000" height="1000" viewBox="0 0 1000 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Capsule & Frame Rich Copper-Gold Gradients -->
+    <linearGradient id="capsuleGrad" x1="446" y1="250" x2="554" y2="572" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F2C694" />
+      <stop offset="45%" stop-color="#CB8853" />
+      <stop offset="100%" stop-color="#9A592D" />
+    </linearGradient>
+
+    <linearGradient id="capsuleLeftShade" x1="446" y1="250" x2="500" y2="572" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E5B682" />
+      <stop offset="50%" stop-color="#B97441" />
+      <stop offset="100%" stop-color="#8B4D24" />
+    </linearGradient>
+
+    <linearGradient id="frameTopGrad" x1="415" y1="219" x2="585" y2="407" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F0C38E" />
+      <stop offset="50%" stop-color="#D49560" />
+      <stop offset="100%" stop-color="#9B5B30" />
+    </linearGradient>
+
+    <linearGradient id="frameBottomGrad" x1="415" y1="428" x2="585" y2="658" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D99B66" />
+      <stop offset="55%" stop-color="#B87343" />
+      <stop offset="100%" stop-color="#935228" />
+    </linearGradient>
+
+    <linearGradient id="copperWaveLeft" x1="0" y1="340" x2="0" y2="532" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#DF9F69" />
+      <stop offset="50%" stop-color="#B6703E" />
+      <stop offset="100%" stop-color="#884B22" />
+    </linearGradient>
+
+    <linearGradient id="copperWaveRight" x1="0" y1="340" x2="0" y2="532" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFDFB" />
+      <stop offset="48%" stop-color="#FFF6EA" />
+      <stop offset="50%" stop-color="#DEB07C" />
+      <stop offset="100%" stop-color="#A66334" />
+    </linearGradient>
+
+    <linearGradient id="studioTextGrad" x1="97" y1="12" x2="239" y2="39" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#AC683A" />
+      <stop offset="50%" stop-color="#C8824F" />
+      <stop offset="100%" stop-color="#A25F32" />
+    </linearGradient>
+
+    <clipPath id="leftHalfClip">
+      <rect x="446" y="250" width="54" height="322" />
+    </clipPath>
+  </defs>
+
+  <!-- Background Layer (Delete or hide for transparent background) -->
+  <rect id="Background" width="100%" height="100%" fill="#161E21" />
+
+  <!-- Microphone Icon Group -->
+  <g id="Microphone-Icon">
+    <!-- Left Soundwave Bars -->
+    <g id="Soundwaves-Left">
+      <rect id="Wave-Left-1" x="390.0" y="388.0" width="14" height="96" rx="7" fill="url(#copperWaveLeft)" /> <rect id="Wave-Left-2" x="363.0" y="340.0" width="14" height="192" rx="7" fill="url(#copperWaveLeft)" /> <rect id="Wave-Left-3" x="336.0" y="367.0" width="14" height="138" rx="7" fill="url(#copperWaveLeft)" /> <rect id="Wave-Left-4" x="309.0" y="400.0" width="14" height="72" rx="7" fill="url(#copperWaveLeft)" /> <rect id="Wave-Left-5" x="282.0" y="420.0" width="14" height="32" rx="7" fill="url(#copperWaveLeft)" />
+    </g>
+
+    <!-- Right Soundwave Bars -->
+    <g id="Soundwaves-Right">
+      <rect id="Wave-Right-1" x="596.0" y="388.0" width="14" height="96" rx="7" fill="url(#copperWaveRight)" /> <rect id="Wave-Right-2" x="623.0" y="340.0" width="14" height="192" rx="7" fill="url(#copperWaveRight)" /> <rect id="Wave-Right-3" x="650.0" y="367.0" width="14" height="138" rx="7" fill="url(#copperWaveRight)" /> <rect id="Wave-Right-4" x="677.0" y="400.0" width="14" height="72" rx="7" fill="url(#copperWaveRight)" /> <rect id="Wave-Right-5" x="704.0" y="420.0" width="14" height="32" rx="7" fill="url(#copperWaveRight)" />
+    </g>
+
+    <!-- Outer Microphone Frame & Stand -->
+    <g id="Microphone-Frame">
+      <path id="Frame-Top-Arch" d="M 415 407 L 415 304 A 85 85 0 0 1 585 304 L 585 407 L 570 407 L 570 304 A 70 70 0 0 0 430 304 L 430 407 Z" fill="url(#frameTopGrad)" />
+      <path id="Frame-Bottom-Stand" d="M 415 428 L 430 428 L 430 518 A 70 70 0 0 0 570 518 L 570 428 L 585 428 L 585 518 A 85 85 0 0 1 511 602.28 L 511 642 L 551 642 L 561 658 L 439 658 L 449 642 L 489 642 L 489 602.28 A 85 85 0 0 1 415 518 Z" fill="url(#frameBottomGrad)" />
+      <!-- Subtle highlight cap on right cradle tip matching reference image -->
+      <path id="Frame-Right-Highlight" d="M 570 428 L 585 428 L 585 442 L 570 442 Z" fill="#FFF6EA" />
+    </g>
+
+    <!-- Inner Capsule with True Negative-Space Cross Cutout -->
+    <g id="Microphone-Capsule-Cutout">
+      <path id="Capsule-Top-Crown" d="M 446 352 L 446 304 A 54 54 0 0 1 554 304 L 554 352 L 517 352 L 517 304 L 483 304 L 483 352 Z" fill="url(#capsuleGrad)" />
+      <path id="Capsule-Bottom-Body" d="M 446 384 L 483 384 L 483 512 L 517 512 L 517 384 L 554 384 L 554 518 A 54 54 0 0 1 446 518 Z" fill="url(#capsuleGrad)" />
+      <!-- Subtle split-tone shading on left half of capsule matching reference image -->
+      <g clip-path="url(#leftHalfClip)" opacity="0.65">
+        <path d="M 446 352 L 446 304 A 54 54 0 0 1 554 304 L 554 352 L 517 352 L 517 304 L 483 304 L 483 352 Z" fill="url(#capsuleLeftShade)" />
+        <path d="M 446 384 L 483 384 L 483 512 L 517 512 L 517 384 L 554 384 L 554 518 A 54 54 0 0 1 446 518 Z" fill="url(#capsuleLeftShade)" />
+      </g>
+    </g>
+  </g>
+
+  <!-- Bottom Wordmark: ATC STUDIO -->
+  <g id="Wordmark" transform="translate(204.2, 682) scale(2.48)">
+    <g id="ATC" fill="#FFFFFF">
+      <path id="A" fill-rule="evenodd" clip-rule="evenodd" d="M 13.00 9.85 L 20.50 9.85 L 33.50 38.27 L 26.00 38.27 L 23.48 32.55 L 10.02 32.55 L 7.50 38.27 L 0.00 38.27 Z M 16.75 17.26 L 12.46 27.00 L 21.04 27.00 Z" />
+      <path id="T-Cross" d="M 41.11 0.00 L 48.25 0.00 L 48.25 9.85 L 57.56 9.85 L 57.56 16.00 L 48.25 16.00 L 48.25 38.27 L 41.11 38.27 L 41.11 16.00 L 31.80 16.00 L 31.80 9.85 L 41.11 9.85 Z" />
+      <path id="C" d="M 86.10 15.09 A 15.10 14.64 0 1 0 86.10 32.92 L 80.71 29.16 A 7.95 8.47 0 1 1 80.71 18.85 Z" />
+    </g>
+    <g id="STUDIO" fill="url(#studioTextGrad)">
+      <path id="S" d="M 107.80 38.62 C 103.85 38.62 100.25 37.35 97.60 35.10 L 100.15 31.65 C 102.35 33.50 105.05 34.45 107.90 34.45 C 111.15 34.45 113.10 32.95 113.10 30.85 C 113.10 28.95 111.45 28.05 106.95 27.00 C 101.45 25.75 98.45 23.95 98.45 19.85 C 98.45 15.55 102.15 12.45 107.45 12.45 C 111.05 12.45 114.15 13.45 116.55 15.30 L 114.20 18.85 C 112.15 17.30 109.80 16.55 107.40 16.55 C 104.45 16.55 102.75 17.95 102.75 19.75 C 102.75 21.70 104.45 22.55 108.95 23.60 C 114.40 24.85 117.45 26.75 117.45 30.70 C 117.45 35.40 113.60 38.62 107.80 38.62 Z" />
+      <path id="T" d="M 121.50 12.80 L 140.50 12.80 L 140.50 17.10 L 133.15 17.10 L 133.15 38.27 L 128.85 38.27 L 128.85 17.10 L 121.50 17.10 Z" />
+      <path id="U" d="M 145.50 12.80 L 149.80 12.80 L 149.80 28.10 A 6.20 6.20 0 0 0 162.20 28.10 L 162.20 12.80 L 166.50 12.80 L 166.50 28.10 A 10.50 10.50 0 0 1 145.50 28.10 Z" />
+      <path id="D" fill-rule="evenodd" clip-rule="evenodd" d="M 173.50 12.80 L 182.80 12.80 A 12.735 12.735 0 0 1 182.80 38.27 L 173.50 38.27 Z M 177.80 17.10 L 177.80 33.97 L 182.80 33.97 A 8.435 8.435 0 0 0 182.80 17.10 Z" />
+      <path id="I" d="M 202.00 12.80 L 206.30 12.80 L 206.30 38.27 L 202.00 38.27 Z" />
+      <path id="O" fill-rule="evenodd" clip-rule="evenodd" d="M 225.50 12.48 A 13.05 13.05 0 1 1 225.50 38.59 A 13.05 13.05 0 1 1 225.50 12.48 Z M 225.50 16.79 A 8.75 8.75 0 1 0 225.50 34.28 A 8.75 8.75 0 1 0 225.50 16.79 Z" />
+    </g>
+  </g>
+</svg>
