@@ -1,5 +1,7 @@
 # ATC Studio
 
+[![Build and test](https://github.com/michaelrubi/atcStudio/actions/workflows/ci.yml/badge.svg)](https://github.com/michaelrubi/atcStudio/actions/workflows/ci.yml)
+
 As The Church Studio: drop in raw Sunday sermon or podcast audio and get a mastered,
 denoised, bumper-stitched, speaker-labeled episode package.
 
@@ -36,13 +38,18 @@ Sources/
     Storage/                 GRDB models, migrations, DatabaseManager, assets
 Tests/
   RestorationStationTests/   Database, mix-plan, and real-ffmpeg tests (Swift Testing)
-scripts/                     Release scripts (Milestone 5)
+scripts/                     setup_signing.sh (signing secrets), release scripts (Milestone 5)
 ```
 
 ## Credits
 
 On-device AI by [Desert Ant Labs](https://desertant.com) 🐜 (Clear, Voz, Who, Align, Uhm, Title),
 under the Desert Ant Labs Source-Available License 1.0.
+
+## Release signing
+
+Releases are signed with a Developer ID certificate and notarized in GitHub Actions.
+To set up or renew the 7 signing secrets, run `./scripts/setup_signing.sh` and follow the steps.
 
 ## Data
 

@@ -1,0 +1,35 @@
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-26 # Apple Silicon, Xcode 26.6
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg (used by the mixing tests)
+        run: brew install ffmpeg
+
+      - name: Cache SwiftPM packages and build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: swiftpm-${{ runner.os }}-
+
+      - name: Build
+        run: swift build
+
+      # The ML end-to-end test downloads ~0.9 GB of models; it only runs with ATC_ML_TESTS=1.
+      - name: Test
+        run: swift test --skip MLPipelineTests
