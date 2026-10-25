@@ -218,13 +218,20 @@ struct WorkspaceView: View {
         case .analyzing(let fraction):
             VStack(alignment: .leading, spacing: 8) {
                 ProgressView(value: fraction)
-                Text("Restoration Station: Finding where the message starts and ends…").foregroundStyle(.secondary)
+                Text("Restoration Station: Detecting worship music and finding where the message starts and ends…").foregroundStyle(.secondary)
             }
-        case .ready(let profile, let duration, let autoTrim):
+        case .ready(let profile, let music, let duration, let autoTrim, let contentTrim):
             if let source = job.source {
-                TrimEditor(source: source, profile: profile, sourceDuration: duration,
-                           autoTrim: autoTrim, trim: $job.trim)
-                    .disabled(job.isRunning)
+                TrimEditor(
+                    source: source,
+                    profile: profile,
+                    music: music,
+                    sourceDuration: duration,
+                    autoTrim: autoTrim,
+                    contentTrim: contentTrim,
+                    trim: $job.trim
+                )
+                .disabled(job.isRunning)
             }
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -258,7 +265,7 @@ final class EpisodeJob {
     enum Analysis {
         case none
         case analyzing(Double)
-        case ready(LoudnessProfile, duration: Double, autoTrim: TrimRange)
+        case ready(LoudnessProfile, music: MusicTimeline, duration: Double, autoTrim: TrimRange, contentTrim: TrimRange)
         case failed(String)
     }
 
@@ -293,16 +300,20 @@ final class EpisodeJob {
             do {
                 let ffmpeg = try FFmpegRunner.locate()
                 let duration = try await AudioCompositionService.duration(of: url)
+                async let musicTask = MusicTimeline.analyze(url)
                 let profile = try await LoudnessProfile.measure(url, ffmpeg: ffmpeg, duration: duration) { f in
                     Task { @MainActor [weak self] in
                         if let self, self.source == url, case .analyzing = self.analysis { self.analysis = .analyzing(f) }
                     }
                 }
-                var auto = profile.detectContent()
-                auto.end = min(auto.end, duration)
+                let music = await musicTask
+                var contentTrim = profile.detectContent()
+                contentTrim.end = min(contentTrim.end, duration)
+                var autoTrim = music.sermonTrim(within: contentTrim)
+                autoTrim.end = min(autoTrim.end, duration)
                 guard source == url else { return }
-                trim = auto
-                analysis = .ready(profile, duration: duration, autoTrim: auto)
+                trim = autoTrim
+                analysis = .ready(profile, music: music, duration: duration, autoTrim: autoTrim, contentTrim: contentTrim)
             } catch is CancellationError {
             } catch {
                 if source == url { analysis = .failed(error.localizedDescription) }

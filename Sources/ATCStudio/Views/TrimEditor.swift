@@ -7,12 +7,22 @@ import SwiftUI
 struct TrimEditor: View {
     let source: URL
     let profile: LoudnessProfile
+    var music: MusicTimeline = MusicTimeline()
     let sourceDuration: Double
     let autoTrim: TrimRange
+    var contentTrim: TrimRange?
     @Binding var trim: TrimRange
     @State private var player = PreviewPlayer()
 
     private static let minLength = 1.0
+
+    private var effectiveContentTrim: TrimRange {
+        contentTrim ?? autoTrim
+    }
+
+    private var hasDistinctWorshipTrim: Bool {
+        music.hasMusic && abs(autoTrim.start - effectiveContentTrim.start) + abs(autoTrim.end - effectiveContentTrim.end) > 1.0
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -21,23 +31,50 @@ struct TrimEditor: View {
                     .font(.headline)
                 Text("Removed \(Timecode.short(trim.start)) at the start and \(Timecode.short(sourceDuration - trim.end)) at the end.")
                     .foregroundStyle(.secondary)
+                if music.hasMusic {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(.purple)
+                            .frame(width: 8, height: 8)
+                        Text("Worship Music")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.leading, 4)
+                }
                 Spacer()
-                Button("Auto Cut") { trim = autoTrim }
-                    .disabled(trim == autoTrim)
+                if hasDistinctWorshipTrim {
+                    Button("Message Only") { trim = autoTrim }
+                        .disabled(trim == autoTrim)
+                        .help("Trim out opening and closing worship music")
+                    Button("Keep Worship") { trim = effectiveContentTrim }
+                        .disabled(trim == effectiveContentTrim)
+                        .help("Keep worship music, trimming only room silence")
+                } else {
+                    Button("Auto Cut") { trim = autoTrim }
+                        .disabled(trim == autoTrim)
+                }
                 Button("Keep Whole File") { trim = TrimRange(start: 0, end: sourceDuration) }
                     .disabled(trim == TrimRange(start: 0, end: sourceDuration))
             }
 
-            LevelStrip(profile: profile, range: 0...max(sourceDuration, 1), keep: trim)
-                .frame(height: 44)
+            LevelStrip(
+                profile: profile,
+                musicSpans: music.musicSpans,
+                range: 0...max(sourceDuration, 1),
+                keep: trim
+            )
+            .frame(height: 44)
 
             HStack(alignment: .top, spacing: 16) {
                 CutPointEditor(
-                    title: "Message starts", edge: .start, profile: profile, trim: trim,
+                    title: "Message starts", edge: .start, profile: profile,
+                    musicSpans: music.musicSpans, trim: trim,
                     value: Binding(get: { trim.start }, set: { trim.start = min(max(0, $0), trim.end - Self.minLength) }),
                     onHear: { player.play(source, from: trim.start, for: 5) })
                 CutPointEditor(
-                    title: "Message ends", edge: .end, profile: profile, trim: trim,
+                    title: "Message ends", edge: .end, profile: profile,
+                    musicSpans: music.musicSpans, trim: trim,
                     value: Binding(get: { trim.end }, set: { trim.end = max(min(sourceDuration, $0), trim.start + Self.minLength) }),
                     onHear: { player.play(source, from: max(trim.start, trim.end - 5), until: trim.end) })
             }
@@ -52,6 +89,7 @@ private struct CutPointEditor: View {
     let title: String
     let edge: Edge
     let profile: LoudnessProfile
+    var musicSpans: [TrimRange] = []
     let trim: TrimRange
     @Binding var value: Double
     let onHear: () -> Void
@@ -73,7 +111,7 @@ private struct CutPointEditor: View {
                 GeometryReader { geo in
                     let center = dragCenter ?? value
                     let range = (center - Self.span)...(center + Self.span)
-                    LevelStrip(profile: profile, range: range, keep: trim, marker: value)
+                    LevelStrip(profile: profile, musicSpans: musicSpans, range: range, keep: trim, marker: value)
                         .contentShape(Rectangle())
                         .gesture(
                             DragGesture(minimumDistance: 0)
@@ -105,9 +143,11 @@ private struct CutPointEditor: View {
     }
 }
 
-/// Loudness bars for `range` (source seconds). Kept audio is drawn in the accent color.
+/// Loudness bars for `range` (source seconds). Kept audio is drawn in the accent color,
+/// and detected worship/music spans are highlighted in purple.
 private struct LevelStrip: View {
     let profile: LoudnessProfile
+    var musicSpans: [TrimRange] = []
     let range: ClosedRange<Double>
     let keep: TrimRange
     var marker: Double?
@@ -124,8 +164,16 @@ private struct LevelStrip: View {
                 guard let level else { continue }
                 let height = max(1, CGFloat((level - Self.bottomDb) / -Self.bottomDb) * size.height)
                 let rect = CGRect(x: CGFloat(column) * 2, y: (size.height - height) / 2, width: 1.5, height: height)
-                let kept = t0 + secondsPerColumn / 2 >= keep.start && t0 + secondsPerColumn / 2 <= keep.end
-                context.fill(Path(rect), with: .color(kept ? .accentColor : .secondary.opacity(0.35)))
+                let tMid = t0 + secondsPerColumn / 2
+                let kept = tMid >= keep.start && tMid <= keep.end
+                let isMusic = musicSpans.contains { tMid >= $0.start && tMid <= $0.end }
+                let barColor: Color = switch (kept, isMusic) {
+                case (true, true): .purple
+                case (true, false): .accentColor
+                case (false, true): .purple.opacity(0.45)
+                case (false, false): .secondary.opacity(0.35)
+                }
+                context.fill(Path(rect), with: .color(barColor))
             }
             for edge in [keep.start, keep.end] + (marker.map { [$0] } ?? []) where range.contains(edge) {
                 let x = (edge - range.lowerBound) / (range.upperBound - range.lowerBound) * size.width
