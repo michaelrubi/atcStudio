@@ -5,10 +5,12 @@ import UniformTypeIdentifiers
 
 struct WorkspaceView: View {
     @Environment(Library.self) private var library
+    @Environment(ModelManager.self) private var models
     @State private var job = EpisodeJob()
     @State private var templateID: Template.ID?
     @State private var isPicking = false
     @State private var isTargeted = false
+    @AppStorage("runAIExtras") private var runAIExtras = true
 
     private var template: Template? { library.templates.first { $0.id == templateID } }
 
@@ -23,12 +25,24 @@ struct WorkspaceView: View {
                         ForEach(library.templates) { Text($0.name).tag($0.id) }
                     }
                     .frame(maxWidth: 320)
+                    Toggle(isOn: Binding(get: { runAIExtras && models.allReady }, set: { runAIExtras = $0 })) {
+                        Text("Clean audio, transcript, speakers, and titles")
+                        Text(models.allReady ? "Turn off to make only the MP3, faster."
+                                             : "Download the models in the Models tab to use this.")
+                    }
+                    .disabled(!models.allReady || job.isRunning)
                     Spacer()
                     if job.isRunning {
                         Button("Cancel", role: .cancel) { job.cancel() }
                     } else {
-                        Button("Make Episode") {
-                            if let template { job.start(template: template) }
+                        Button(runAIExtras && models.allReady ? "Make Episode" : "Make MP3") {
+                            guard let template else { return }
+                            do {
+                                try job.start(template: template, speakerNames: library.speakers.map(\.name),
+                                              pipeline: runAIExtras && models.allReady ? models.pipeline() : nil)
+                            } catch {
+                                job.fail(error.localizedDescription)
+                            }
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
@@ -114,20 +128,40 @@ struct WorkspaceView: View {
                 ProgressView(value: update.fraction)
                 Text(update.message).foregroundStyle(.secondary)
             }
-        case .finished(let result):
+        case .finished(let outcome):
+            let result = outcome.analysis
             GroupBox {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Restoration Station: Your episode is ready.", systemImage: "checkmark.seal.fill")
                         .font(.headline)
                         .foregroundStyle(.green)
-                    LabeledContent("Length", value: Timecode.string(result.totalDurationSeconds))
-                    LabeledContent("Message starts at", value: Timecode.string(result.introOffsetSeconds, millis: true))
-                    LabeledContent("Outro starts at", value: Timecode.string(result.plan.mainEnd))
+                    LabeledContent("Length", value: Timecode.string(outcome.totalDuration))
+                    LabeledContent("Message starts at", value: Timecode.string(outcome.introOffset, millis: true))
+                    LabeledContent("Outro starts at", value: Timecode.string(outcome.mainEnd))
+                    if let result {
+                        LabeledContent("Speakers found", value: "\(result.speakerCount)")
+                        LabeledContent("Filler words", value: "\(result.fillers.count)")
+                        LabeledContent("Words", value: "\(result.words.count)")
+                        if !result.suggestedTitles.isEmpty {
+                            LabeledContent("Title ideas") {
+                                VStack(alignment: .trailing) {
+                                    ForEach(result.suggestedTitles, id: \.self) { Text($0) }
+                                }
+                            }
+                        }
+                        if !result.summary.isEmpty {
+                            LabeledContent("Summary") { Text(result.summary).multilineTextAlignment(.trailing) }
+                        }
+                        Text(result.transcriptText.prefix(600) + (result.transcriptText.count > 600 ? "…" : ""))
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
                     HStack {
                         Button("Reveal in Finder") {
-                            NSWorkspace.shared.activateFileViewerSelecting([result.outputURL])
+                            NSWorkspace.shared.activateFileViewerSelecting([outcome.masterURL])
                         }
-                        Button("Play") { NSWorkspace.shared.open(result.outputURL) }
+                        Button("Play") { NSWorkspace.shared.open(outcome.masterURL) }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -151,10 +185,19 @@ final class EpisodeJob {
         case failed(String)
     }
 
+    /// The MP3 always; the ML analysis only when the AI extras ran.
+    struct Outcome {
+        var masterURL: URL
+        var introOffset: Double
+        var mainEnd: Double
+        var totalDuration: Double
+        var analysis: EpisodeAnalysis?
+    }
+
     enum State {
         case idle
         case running(CompositionUpdate)
-        case finished(CompositionResult)
+        case finished(Outcome)
         case failed(String)
     }
 
@@ -199,23 +242,37 @@ final class EpisodeJob {
         }
     }
 
-    func start(template: Template) {
+    func fail(_ message: String) {
+        state = .failed(message)
+    }
+
+    /// With a `pipeline`: clean + mix + ML. Without: trim + mix + master only (no models needed).
+    func start(template: Template, speakerNames: [String], pipeline: MLPipelineActor?) {
         guard let source, isReady else { return }
         let trim = trim
         state = .running(.init(message: "Restoration Station: Getting ready…", fraction: 0))
         task = Task {
             do {
-                let service = try AudioCompositionService(ffmpeg: .locate())
                 let folder = ExportLocation.newFolder(title: source.deletingPathExtension().lastPathComponent)
-                let result = try await service.compose(
-                    mainAudio: source, template: template, trim: trim,
-                    to: folder.appending(path: "master_episode.mp3")
-                ) { update in
+                let output = folder.appending(path: "master_episode.mp3")
+                let onUpdate: @Sendable (CompositionUpdate) -> Void = { update in
                     Task { @MainActor [weak self] in
                         if let self, self.isRunning { self.state = .running(update) }
                     }
                 }
-                state = .finished(result)
+                if let pipeline {
+                    let input = MLPipelineActor.Input(
+                        source: source, trim: trim, template: template, speakerNames: speakerNames, output: output)
+                    let a = try await pipeline.process(input, onUpdate: onUpdate)
+                    state = .finished(Outcome(masterURL: a.masterURL, introOffset: a.introOffset,
+                                              mainEnd: a.mainEnd, totalDuration: a.totalDuration, analysis: a))
+                } else {
+                    let r = try await AudioCompositionService(ffmpeg: .locate())
+                        .compose(mainAudio: source, template: template, trim: trim, to: output, onUpdate: onUpdate)
+                    state = .finished(Outcome(masterURL: r.outputURL, introOffset: r.introOffsetSeconds,
+                                              mainEnd: r.plan.mainEnd, totalDuration: r.totalDurationSeconds,
+                                              analysis: nil))
+                }
             } catch is CancellationError {
                 state = .idle
             } catch {

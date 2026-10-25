@@ -10,7 +10,8 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
-        // Milestone 3 adds desert-ant-core (Clear, Voz, Who, Align, Uhm, Title).
+        // `MLX` turns on the Title model; without it Title compiles as a stub.
+        .package(url: "https://github.com/Desert-Ant-Labs/desert-ant-core.git", from: "4.1.0", traits: ["MLX"]),
     ],
     targets: [
         .executableTarget(
@@ -19,7 +20,16 @@ let package = Package(
         ),
         .target(
             name: "RestorationStation",
-            dependencies: [.product(name: "GRDB", package: "GRDB.swift")]
+            dependencies: [
+                .product(name: "GRDB", package: "GRDB.swift"),
+                .product(name: "DesertAnt", package: "desert-ant-core"),
+                .product(name: "Clear", package: "desert-ant-core"),
+                .product(name: "Voz", package: "desert-ant-core"),
+                .product(name: "Who", package: "desert-ant-core"),
+                .product(name: "Align", package: "desert-ant-core"),
+                .product(name: "Uhm", package: "desert-ant-core"),
+                .product(name: "Title", package: "desert-ant-core"),
+            ]
         ),
         .testTarget(
             name: "RestorationStationTests",

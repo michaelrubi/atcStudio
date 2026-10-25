@@ -10,7 +10,8 @@ The audio and ML engine is the `RestorationStation` library.
 - Apple Silicon Mac (`arm64`)
 - macOS 15 or newer
 - Xcode 26 / Swift 6.2 or newer
-- `ffmpeg` (from Milestone 2): `brew install ffmpeg` for local development
+- `ffmpeg`: `brew install ffmpeg` for local development
+- For Title suggestions, Xcode's Metal Toolchain: `xcodebuild -downloadComponent MetalToolchain`
 
 ## Build and run
 
@@ -18,6 +19,7 @@ The audio and ML engine is the `RestorationStation` library.
 swift build
 swift test
 swift run ATCStudio
+ATC_ML_TESTS=1 swift test --filter MLPipelineTests   # downloads ~0.9 GB of models once
 ```
 
 You can also open `Package.swift` in Xcode and run the `ATCStudio` scheme.
@@ -29,12 +31,18 @@ Package.swift
 Sources/
   ATCStudio/                 SwiftUI app (window, tabs, views)
   RestorationStation/
-    Audio/                   FFmpegRunner, MixPlan, AudioCompositionService
+    Audio/                   FFmpegRunner, MixPlan, AudioCompositionService, trim
+    ML/                      Desert Ant models, MLPipelineActor, EpisodeAnalysis
     Storage/                 GRDB models, migrations, DatabaseManager, assets
 Tests/
   RestorationStationTests/   Database, mix-plan, and real-ffmpeg tests (Swift Testing)
 scripts/                     Release scripts (Milestone 5)
 ```
+
+## Credits
+
+On-device AI by [Desert Ant Labs](https://desertant.com) 🐜 (Clear, Voz, Who, Align, Uhm, Title),
+under the Desert Ant Labs Source-Available License 1.0.
 
 ## Data
 
@@ -45,6 +53,6 @@ scripts/                     Release scripts (Milestone 5)
 
 - [x] Milestone 1: project, SQLite storage, Templates and Speakers tabs
 - [x] Milestone 2: FFmpeg mixing and auto-ducking
-- [ ] Milestone 3: Desert Ant ML pipeline
+- [x] Milestone 3: Desert Ant ML pipeline
 - [ ] Milestone 4: speaker mapping and export
 - [ ] Milestone 5: release DMG

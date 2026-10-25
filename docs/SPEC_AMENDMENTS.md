@@ -89,3 +89,24 @@ Checked against `desert-ant-core` v4.1.0 source on 2026-10-25.
     Milestone 3 could suggest a start from the first transcribed words.
 24. **Milestone 3 timestamps.** ML timestamps are in source-file seconds. Convert them with
     `CompositionResult.masterTime(forSourceTime:)` = `introOffset + (t - trim.start)`.
+
+## Milestone 3 choices (as built)
+
+25. **Models are optional.** Make MP3 (trim + bumpers + -16 LUFS) needs only `ffmpeg`.
+    The switch "Clean audio, transcript, speakers, and titles" adds Clear and the ML
+    models, and works only once they are downloaded. The download sheet shows once, on
+    first launch; after that, use the Models tab.
+26. **Clear runs only on the kept part** (after the trim), with its own mastering off
+    (`.bypass`), because our ffmpeg pass masters to -16 LUFS. All ML runs on that clean
+    clip, so master time = ML time + `introOffset`.
+27. **Title gives 1 title and a 1–2 sentence description per passage.** For 3 title ideas
+    we describe the whole message, its first half, and its second half. The summary is
+    the whole-message description (1–2 sentences, not 2–3).
+28. **Title needs an Xcode build.** It runs on the GPU through MLX. `swift build` does not
+    compile MLX's GPU code, so a `swift run` build skips titles (the other 5 models still
+    run). `xcodebuild` needs Xcode's Metal Toolchain:
+    `xcodebuild -downloadComponent MetalToolchain` (one time).
+29. **Language is English** for Align (`en`). Voz detects language by itself.
+30. **`Xet` trait left off.** Plain HTTPS downloads work and need fewer dependencies.
+31. **Desert Ant credit** ("On-device AI by Desert Ant Labs 🐜", linked to desertant.com)
+    is in the About panel and the Models tab.
