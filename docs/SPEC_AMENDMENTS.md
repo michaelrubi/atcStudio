@@ -131,3 +131,16 @@ Checked against `desert-ant-core` v4.1.0 source on 2026-10-25.
     `transcript.vtt`. The Intro and Outro lines appear only when the episode has them.
 40. **`artwork.jpg` is always a JPEG.** PNG and other artwork is converted with ImageIO.
 41. **"Copy Show Notes"** copies the title, summary, speakers, and timestamps (no transcript).
+
+## Milestone 5 choices (as built)
+
+42. **ffmpeg is built from source in CI** (`scripts/build_ffmpeg.sh`): FFmpeg 8.0 + LAME 3.100,
+    LGPL only (no `--enable-gpl`), LAME linked statically, `--disable-autodetect` so it links
+    only to macOS system libraries. Every filter we use (`loudnorm`, `amix`, `acrossfade`, …) is
+    LGPL. Notices and source links are in `THIRD_PARTY_NOTICES.md`, also copied into the app.
+43. **The app is built with `xcodebuild`**, not `swift build`, so MLX's Metal shaders exist and
+    Title works. CI runs `xcodebuild -downloadComponent MetalToolchain` first.
+44. **Gatekeeper: Developer ID signing and notarization** (answers 13). Bundle id
+    `com.rubiconetic.atcstudio`, hardened runtime, no extra entitlements, arm64 only, macOS 15+.
+45. **Release = push a `v*` tag.** `.github/workflows/release.yml` builds, signs, notarizes,
+    staples, and attaches `ATC-Studio-<version>.dmg` to a GitHub Release.

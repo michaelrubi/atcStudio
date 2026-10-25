@@ -42,7 +42,7 @@ Sources/
 Tests/
   RestorationStationTests/   Database, mix-plan, and real-ffmpeg tests (Swift Testing)
 assets/branding/             Logo, icon, and wordmark SVGs (placeholders)
-scripts/                     setup_signing.sh (signing secrets), release scripts (Milestone 5)
+scripts/                     setup_signing.sh, build_ffmpeg.sh, build_app.sh, package_dmg.sh
 ```
 
 ## Credits
@@ -54,6 +54,27 @@ under the Desert Ant Labs Source-Available License 1.0.
 
 Releases are signed with a Developer ID certificate and notarized in GitHub Actions.
 To set up or renew the 7 signing secrets, run `./scripts/setup_signing.sh` and follow the steps.
+
+## Releasing
+
+Push a version tag. The `Release` workflow builds, signs, and notarizes
+`ATC-Studio-<version>.dmg` and attaches it to a GitHub Release.
+
+```
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+To build a test DMG on this Mac (ad-hoc signed, not notarized):
+
+```
+xcodebuild -downloadComponent MetalToolchain   # one time
+scripts/build_ffmpeg.sh                        # one time, ~5 min
+scripts/build_app.sh 0.0.1 && scripts/package_dmg.sh 0.0.1
+```
+
+The app ships its own LGPL `ffmpeg` (with LAME) in `Contents/Resources/bin`. See
+`THIRD_PARTY_NOTICES.md`.
 
 ## Data
 
@@ -67,4 +88,4 @@ To set up or renew the 7 signing secrets, run `./scripts/setup_signing.sh` and f
 - [x] Milestone 2: FFmpeg mixing and auto-ducking
 - [x] Milestone 3: Desert Ant ML pipeline
 - [x] Milestone 4: speaker mapping and export
-- [ ] Milestone 5: release DMG
+- [x] Milestone 5: release DMG
