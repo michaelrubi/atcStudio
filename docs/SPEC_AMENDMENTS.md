@@ -110,3 +110,24 @@ Checked against `desert-ant-core` v4.1.0 source on 2026-10-25.
 30. **`Xet` trait left off.** Plain HTTPS downloads work and need fewer dependencies.
 31. **Desert Ant credit** ("On-device AI by Desert Ant Labs 🐜", linked to desertant.com)
     is in the About panel and the Models tab.
+
+## Milestone 4 choices (as built)
+
+32. **The package is saved twice.** It is written once when the run ends (first title idea,
+    "Speaker 1", "Speaker 2", …), so the folder is complete even if nobody edits it.
+    "Save Changes" writes it again after edits.
+33. **The folder follows the title.** A run starts in `YYYY-MM-DD_<file name>/`. Saving renames
+    it to `YYYY-MM-DD_<Sanitized_Title>/` (with `_2`, … if taken). The date stays the run date.
+34. **Speakers are numbered from 1** in the app and files ("Speaker 1"), not from 0 as `Who`
+    numbers them. They are listed by talk time, most first.
+35. **The 6 s sample** is the middle 6 s of the speaker's longest turn, played from the master MP3.
+36. **Searchable picker = name field + saved-speaker menu.** Typing filters the menu. Return or
+    a menu pick saves the name (upsert, sets `last_used_at`). "Speaker N" names are not saved.
+37. **Two voices can map to one person.** The SPEAKERS line lists each name once.
+38. **VTT cues** break on a new speaker, a pause over 1.5 s, 7 s, 16 words, or a sentence end
+    after 2 s. `&`, `<`, `>` are escaped. Times are master MP3 times.
+39. **`episode_info.txt` strips `#`, `*`, and backticks** (Title sometimes writes `**bold**`).
+    Make MP3 runs (no models) leave out SPEAKERS, FILLER WORD REPORT, FULL TRANSCRIPT, and
+    `transcript.vtt`. The Intro and Outro lines appear only when the episode has them.
+40. **`artwork.jpg` is always a JPEG.** PNG and other artwork is converted with ImageIO.
+41. **"Copy Show Notes"** copies the title, summary, speakers, and timestamps (no transcript).

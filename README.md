@@ -35,6 +35,7 @@ Sources/
   RestorationStation/
     Audio/                   FFmpegRunner, MixPlan, AudioCompositionService, trim
     ML/                      Desert Ant models, MLPipelineActor, EpisodeAnalysis
+    Export/                  EpisodePackage (VTT, episode info, show notes), EpisodePackageExporter
     Storage/                 GRDB models, migrations, DatabaseManager, assets
 Tests/
   RestorationStationTests/   Database, mix-plan, and real-ffmpeg tests (Swift Testing)
@@ -54,12 +55,13 @@ To set up or renew the 7 signing secrets, run `./scripts/setup_signing.sh` and f
 ## Data
 
 - Database: `~/Library/Application Support/ATCStudio/atc_studio.sqlite`
-- Exports: `~/Movies/ATC Studio Exports/` (from Milestone 4)
+- Exports: `~/Movies/ATC Studio Exports/YYYY-MM-DD_<Title>/` with `master_episode.mp3`,
+  `transcript.vtt`, `episode_info.txt`, and `artwork.jpg`
 
 ## Status
 
 - [x] Milestone 1: project, SQLite storage, Templates and Speakers tabs
 - [x] Milestone 2: FFmpeg mixing and auto-ducking
 - [x] Milestone 3: Desert Ant ML pipeline
-- [ ] Milestone 4: speaker mapping and export
+- [x] Milestone 4: speaker mapping and export
 - [ ] Milestone 5: release DMG

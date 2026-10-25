@@ -8,9 +8,7 @@ public enum ExportLocation {
 
     /// A folder for this run that does not exist yet. Adds `_2`, `_3`, … rather than overwrite.
     public static func newFolder(title: String, date: Date = Date(), root: URL = root) -> URL {
-        let parts = Calendar.current.dateComponents([.year, .month, .day], from: date) // local day, not UTC
-        let day = String(format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!)
-        let base = "\(day)_\(sanitize(title))"
+        let base = baseName(title: title, date: date)
         var name = base
         var n = 2
         while FileManager.default.fileExists(atPath: root.appending(path: name).path) {
@@ -18,6 +16,21 @@ public enum ExportLocation {
             n += 1
         }
         return root.appending(path: name, directoryHint: .isDirectory)
+    }
+
+    /// True when `folder` is already `YYYY-MM-DD_<title>` or `YYYY-MM-DD_<title>_N`.
+    public static func folder(_ folder: URL, isNamedFor title: String, date: Date) -> Bool {
+        let base = baseName(title: title, date: date)
+        let name = folder.lastPathComponent
+        if name == base { return true }
+        guard name.hasPrefix(base + "_") else { return false }
+        return Int(name.dropFirst(base.count + 1)).map { $0 >= 2 } ?? false
+    }
+
+    static func baseName(title: String, date: Date) -> String {
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: date) // local day, not UTC
+        let day = String(format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!)
+        return "\(day)_\(sanitize(title))"
     }
 
     /// Letters and digits kept, everything else becomes `_`, runs collapsed, max 60 characters.

@@ -128,45 +128,8 @@ struct WorkspaceView: View {
                 ProgressView(value: update.fraction)
                 Text(update.message).foregroundStyle(.secondary)
             }
-        case .finished(let outcome):
-            let result = outcome.analysis
-            GroupBox {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Restoration Station: Your episode is ready.", systemImage: "checkmark.seal.fill")
-                        .font(.headline)
-                        .foregroundStyle(.green)
-                    LabeledContent("Length", value: Timecode.string(outcome.totalDuration))
-                    LabeledContent("Message starts at", value: Timecode.string(outcome.introOffset, millis: true))
-                    LabeledContent("Outro starts at", value: Timecode.string(outcome.mainEnd))
-                    if let result {
-                        LabeledContent("Speakers found", value: "\(result.speakerCount)")
-                        LabeledContent("Filler words", value: "\(result.fillers.count)")
-                        LabeledContent("Words", value: "\(result.words.count)")
-                        if !result.suggestedTitles.isEmpty {
-                            LabeledContent("Title ideas") {
-                                VStack(alignment: .trailing) {
-                                    ForEach(result.suggestedTitles, id: \.self) { Text($0) }
-                                }
-                            }
-                        }
-                        if !result.summary.isEmpty {
-                            LabeledContent("Summary") { Text(result.summary).multilineTextAlignment(.trailing) }
-                        }
-                        Text(result.transcriptText.prefix(600) + (result.transcriptText.count > 600 ? "…" : ""))
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                    }
-                    HStack {
-                        Button("Reveal in Finder") {
-                            NSWorkspace.shared.activateFileViewerSelecting([outcome.masterURL])
-                        }
-                        Button("Play") { NSWorkspace.shared.open(outcome.masterURL) }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(4)
-            }
+        case .finished(let review):
+            EpisodeReviewView(review: review)
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
@@ -185,19 +148,10 @@ final class EpisodeJob {
         case failed(String)
     }
 
-    /// The MP3 always; the ML analysis only when the AI extras ran.
-    struct Outcome {
-        var masterURL: URL
-        var introOffset: Double
-        var mainEnd: Double
-        var totalDuration: Double
-        var analysis: EpisodeAnalysis?
-    }
-
     enum State {
         case idle
         case running(CompositionUpdate)
-        case finished(Outcome)
+        case finished(EpisodeReview)
         case failed(String)
     }
 
@@ -253,26 +207,31 @@ final class EpisodeJob {
         state = .running(.init(message: "Restoration Station: Getting ready…", fraction: 0))
         task = Task {
             do {
-                let folder = ExportLocation.newFolder(title: source.deletingPathExtension().lastPathComponent)
-                let output = folder.appending(path: "master_episode.mp3")
+                let date = Date()
+                let fallbackTitle = source.deletingPathExtension().lastPathComponent
+                let folder = ExportLocation.newFolder(title: fallbackTitle, date: date)
+                let output = folder.appending(path: EpisodePackageExporter.masterName)
                 let onUpdate: @Sendable (CompositionUpdate) -> Void = { update in
                     Task { @MainActor [weak self] in
                         if let self, self.isRunning { self.state = .running(update) }
                     }
                 }
+                let package: EpisodePackage
                 if let pipeline {
                     let input = MLPipelineActor.Input(
                         source: source, trim: trim, template: template, speakerNames: speakerNames, output: output)
                     let a = try await pipeline.process(input, onUpdate: onUpdate)
-                    state = .finished(Outcome(masterURL: a.masterURL, introOffset: a.introOffset,
-                                              mainEnd: a.mainEnd, totalDuration: a.totalDuration, analysis: a))
+                    package = EpisodePackage(analysis: a, fallbackTitle: fallbackTitle, date: date)
                 } else {
                     let r = try await AudioCompositionService(ffmpeg: .locate())
                         .compose(mainAudio: source, template: template, trim: trim, to: output, onUpdate: onUpdate)
-                    state = .finished(Outcome(masterURL: r.outputURL, introOffset: r.introOffsetSeconds,
-                                              mainEnd: r.plan.mainEnd, totalDuration: r.totalDurationSeconds,
-                                              analysis: nil))
+                    package = EpisodePackage(title: fallbackTitle, date: date, introOffset: r.introOffsetSeconds,
+                                             mainEnd: r.plan.mainEnd, totalDuration: r.totalDurationSeconds)
                 }
+                // Write a first package now, so the folder is complete even if nobody edits it.
+                let review = EpisodeReview(package: package, folder: folder, artworkPath: template.artworkPath)
+                review.save(library: nil)
+                state = .finished(review)
             } catch is CancellationError {
                 state = .idle
             } catch {
