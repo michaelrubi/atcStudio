@@ -121,7 +121,7 @@ public struct EpisodePackage: Sendable, Equatable {
         var sections: [String] = []
         let titles = titleOptions.enumerated().map { "\($0.offset + 1). \($0.element)" }
         sections.append("SUGGESTED TITLES:\n" + titles.joined(separator: "\n"))
-        if analysis != nil {
+        if let analysis, analysis.ranModels.contains(.who), !speakerList.isEmpty {
             sections.append("SPEAKERS:\n" + speakerList.joined(separator: ", "))
         }
         sections.append("DATE:\n" + date.formatted(date: .complete, time: .omitted))
@@ -130,8 +130,12 @@ public struct EpisodePackage: Sendable, Equatable {
         }
         sections.append("TIMESTAMPS:\n" + timestampLines.joined(separator: "\n"))
         if let analysis {
-            sections.append("FILLER WORD REPORT (Uhm):\nDetected \(analysis.fillers.count) filler words / long hesitations.")
-            sections.append("FULL TRANSCRIPT:\n" + transcriptParagraphs.joined(separator: "\n\n"))
+            if analysis.ranModels.contains(.uhm) {
+                sections.append("FILLER WORD REPORT (Uhm):\nDetected \(analysis.fillers.count) filler words / long hesitations.")
+            }
+            if analysis.ranModels.contains(.voz), !transcriptParagraphs.isEmpty {
+                sections.append("FULL TRANSCRIPT:\n" + transcriptParagraphs.joined(separator: "\n\n"))
+            }
         }
         return Self.plain(sections.joined(separator: "\n\n")) + "\n"
     }

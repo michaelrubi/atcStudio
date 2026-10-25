@@ -9,7 +9,7 @@ import Who
 
 /// The six Desert Ant Labs models Restoration Station uses.
 /// Each downloads once into the SDK's cache and then works offline.
-public enum PipelineModel: String, CaseIterable, Identifiable, Sendable {
+public enum PipelineModel: String, CaseIterable, Identifiable, Sendable, Codable {
     case clear, voz, who, align, uhm, title
 
     public var id: String { rawValue }
@@ -48,6 +48,25 @@ public enum PipelineModel: String, CaseIterable, Identifiable, Sendable {
     }
 
     public static var allDownloaded: Bool { allCases.allSatisfy(\.isDownloaded) }
+
+    /// Normalizes a selection by resolving model dependencies (e.g. Align and Title require Voz).
+    public static func normalized(_ selection: Set<PipelineModel>) -> Set<PipelineModel> {
+        var result = selection
+        if !result.contains(.voz) {
+            result.remove(.align)
+            result.remove(.title)
+        }
+        return result
+    }
+
+    /// Default selection with all available models.
+    public static let defaultSelection: Set<PipelineModel> = Set(allCases)
+
+    /// Essential speech cleanup and transcript preset.
+    public static let cleanAndTranscript: Set<PipelineModel> = [.clear, .voz, .who, .align]
+
+    /// Clean sanctuary audio only (bypass all speech/text models).
+    public static let audioOnly: Set<PipelineModel> = [.clear]
 
     /// Downloads the model if needed (a no-op when it is already there). `progress` is 0...1.
     public func download(progress: @escaping @Sendable (Double) -> Void) async throws {

@@ -11,8 +11,49 @@ struct WorkspaceView: View {
     @State private var isPicking = false
     @State private var isTargeted = false
     @AppStorage("runAIExtras") private var runAIExtras = true
+    @AppStorage("selectedModelIDs") private var selectedModelIDs: String = PipelineModel.allCases.map(\.rawValue).joined(separator: ",")
 
     private var template: Template? { library.templates.first { $0.id == templateID } }
+
+    private var selectedModels: Set<PipelineModel> {
+        get {
+            let ids = Set(selectedModelIDs.split(separator: ",").map(String.init))
+            let filtered = PipelineModel.allCases.filter { ids.contains($0.rawValue) }
+            return filtered.isEmpty ? Set(PipelineModel.allCases) : Set(filtered)
+        }
+        nonmutating set {
+            selectedModelIDs = newValue.map(\.rawValue).sorted().joined(separator: ",")
+        }
+    }
+
+    private var effectiveModels: Set<PipelineModel> {
+        guard runAIExtras else { return [] }
+        return PipelineModel.normalized(selectedModels)
+    }
+
+    private var modelsAreReady: Bool {
+        models.areReady(effectiveModels)
+    }
+
+    private var aiButtonTitle: String {
+        if !runAIExtras || effectiveModels.isEmpty {
+            return "AI Tools: Off"
+        } else if effectiveModels.count == PipelineModel.allCases.count {
+            return "AI Tools: All (6 of 6)"
+        } else {
+            return "AI Tools: \(effectiveModels.count) of \(PipelineModel.allCases.count) Active"
+        }
+    }
+
+    private var statusSubtitle: String {
+        if !runAIExtras || effectiveModels.isEmpty {
+            return "Fast mix & master only"
+        }
+        if !modelsAreReady {
+            return "Models need download in Models tab"
+        }
+        return effectiveModels.map(\.name).joined(separator: ", ")
+    }
 
     var body: some View {
         ScrollView {
@@ -24,22 +65,24 @@ struct WorkspaceView: View {
                     Picker("Template", selection: $templateID) {
                         ForEach(library.templates) { Text($0.name).tag($0.id) }
                     }
-                    .frame(maxWidth: 320)
-                    Toggle(isOn: Binding(get: { runAIExtras && models.allReady }, set: { runAIExtras = $0 })) {
-                        Text("Clean audio, transcript, speakers, and titles")
-                        Text(models.allReady ? "Turn off to make only the MP3, faster."
-                                             : "Download the models in the Models tab to use this.")
-                    }
-                    .disabled(!models.allReady || job.isRunning)
+                    .frame(maxWidth: 280)
+
+                    toolSelectorMenu
+
                     Spacer()
                     if job.isRunning {
                         Button("Cancel", role: .cancel) { job.cancel() }
                     } else {
-                        Button(runAIExtras && models.allReady ? "Make Episode" : "Make MP3") {
+                        Button(runAIExtras && !effectiveModels.isEmpty && modelsAreReady ? "Make Episode" : "Make MP3") {
                             guard let template else { return }
                             do {
-                                try job.start(template: template, speakerNames: library.speakers.map(\.name),
-                                              pipeline: runAIExtras && models.allReady ? models.pipeline() : nil)
+                                let pipeline = runAIExtras && !effectiveModels.isEmpty && modelsAreReady ? try models.pipeline() : nil
+                                job.start(
+                                    template: template,
+                                    speakerNames: library.speakers.map(\.name),
+                                    pipeline: pipeline,
+                                    models: effectiveModels
+                                )
                             } catch {
                                 job.fail(error.localizedDescription)
                             }
@@ -58,6 +101,77 @@ struct WorkspaceView: View {
         .fileImporter(isPresented: $isPicking, allowedContentTypes: [.audio]) { result in
             if case .success(let url) = result { job.select(url) }
         }
+    }
+
+    private var toolSelectorMenu: some View {
+        Menu {
+            Toggle("Enable AI Tools", isOn: $runAIExtras)
+            Divider()
+            Section("Presets") {
+                Button("All Tools (Full)") {
+                    runAIExtras = true
+                    selectedModels = Set(PipelineModel.allCases)
+                }
+                Button("Clean & Transcript") {
+                    runAIExtras = true
+                    selectedModels = PipelineModel.cleanAndTranscript
+                }
+                Button("Clean Audio Only") {
+                    runAIExtras = true
+                    selectedModels = PipelineModel.audioOnly
+                }
+                Button("None (Fast MP3)") {
+                    runAIExtras = false
+                }
+            }
+            Divider()
+            Section("Selected Tools") {
+                ForEach(PipelineModel.allCases) { model in
+                    Toggle(isOn: Binding(
+                        get: { selectedModels.contains(model) && (model != .title || MLPipelineActor.titleRuntimeAvailable) },
+                        set: { enable in
+                            runAIExtras = true
+                            var updated = selectedModels
+                            if enable {
+                                updated.insert(model)
+                                if model == .align || model == .title {
+                                    updated.insert(.voz)
+                                }
+                            } else {
+                                updated.remove(model)
+                                if model == .voz {
+                                    updated.remove(.align)
+                                    updated.remove(.title)
+                                }
+                            }
+                            selectedModels = updated
+                        }
+                    )) {
+                        HStack {
+                            Text(model.name)
+                            if !model.isDownloaded {
+                                Text("(Needs Download)").foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .disabled(!runAIExtras || (model == .title && !MLPipelineActor.titleRuntimeAvailable))
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: runAIExtras && !effectiveModels.isEmpty ? "sparkles" : "sparkles.slash")
+                    .foregroundStyle(runAIExtras && !effectiveModels.isEmpty ? (modelsAreReady ? Color.accentColor : Color.orange) : Color.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(aiButtonTitle)
+                        .font(.subheadline.weight(.medium))
+                    Text(statusSubtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .menuStyle(.button)
+        .disabled(job.isRunning)
     }
 
     private var dropZone: some View {
@@ -200,8 +314,13 @@ final class EpisodeJob {
         state = .failed(message)
     }
 
-    /// With a `pipeline`: clean + mix + ML. Without: trim + mix + master only (no models needed).
-    func start(template: Template, speakerNames: [String], pipeline: MLPipelineActor?) {
+    /// With a `pipeline`: clean + mix + ML according to `models`. Without: trim + mix + master only.
+    func start(
+        template: Template,
+        speakerNames: [String],
+        pipeline: MLPipelineActor?,
+        models: Set<PipelineModel> = Set(PipelineModel.allCases)
+    ) {
         guard let source, isReady else { return }
         let trim = trim
         state = .running(.init(message: "Restoration Station: Getting ready…", fraction: 0))
@@ -217,9 +336,9 @@ final class EpisodeJob {
                     }
                 }
                 let package: EpisodePackage
-                if let pipeline {
+                if let pipeline, !models.isEmpty {
                     let input = MLPipelineActor.Input(
-                        source: source, trim: trim, template: template, speakerNames: speakerNames, output: output)
+                        source: source, trim: trim, template: template, speakerNames: speakerNames, output: output, models: models)
                     let a = try await pipeline.process(input, onUpdate: onUpdate)
                     package = EpisodePackage(analysis: a, fallbackTitle: fallbackTitle, date: date)
                 } else {

@@ -59,13 +59,16 @@ public struct EpisodeAnalysis: Sendable, Codable, Equatable {
     public var fillers: [FillerMark]
     public var suggestedTitles: [String]
     public var summary: String
+    /// Which models ran to produce this analysis.
+    public var ranModels: Set<PipelineModel>
 
     public var transcriptText: String { words.map(\.text).joined(separator: " ") }
 
     public init(
         masterURL: URL, introOffset: Double, mainEnd: Double, totalDuration: Double,
         words: [TimedWord], turns: [SpeakerTurn], speakerCount: Int, fillers: [FillerMark],
-        suggestedTitles: [String], summary: String
+        suggestedTitles: [String], summary: String,
+        ranModels: Set<PipelineModel> = Set(PipelineModel.allCases)
     ) {
         self.masterURL = masterURL
         self.introOffset = introOffset
@@ -77,6 +80,7 @@ public struct EpisodeAnalysis: Sendable, Codable, Equatable {
         self.fillers = fillers
         self.suggestedTitles = suggestedTitles
         self.summary = summary
+        self.ranModels = ranModels
     }
 }
 
@@ -86,7 +90,8 @@ extension EpisodeAnalysis {
     static func shifted(
         masterURL: URL, introOffset: Double, mainEnd: Double, totalDuration: Double,
         mainWords: [TimedWord], mainTurns: [SpeakerTurn], speakerCount: Int,
-        mainFillers: [FillerMark], suggestedTitles: [String], summary: String
+        mainFillers: [FillerMark], suggestedTitles: [String], summary: String,
+        ranModels: Set<PipelineModel> = Set(PipelineModel.allCases)
     ) -> EpisodeAnalysis {
         let turns = mainTurns
             .map { SpeakerTurn(start: $0.start + introOffset, end: $0.end + introOffset, speaker: $0.speaker) }
@@ -102,7 +107,7 @@ extension EpisodeAnalysis {
         return EpisodeAnalysis(
             masterURL: masterURL, introOffset: introOffset, mainEnd: mainEnd, totalDuration: totalDuration,
             words: words, turns: turns, speakerCount: speakerCount, fillers: fillers,
-            suggestedTitles: suggestedTitles, summary: summary)
+            suggestedTitles: suggestedTitles, summary: summary, ranModels: ranModels)
     }
 
     /// The speaker of the turn containing `time`, else of the nearest turn within 2 s.

@@ -17,13 +17,13 @@ struct EpisodeReviewView: View {
                 HStack(spacing: 24) {
                     LabeledContent("Length", value: Timecode.string(review.package.totalDuration))
                     LabeledContent("Message starts at", value: Timecode.string(review.package.introOffset, millis: true))
-                    if let analysis = review.package.analysis {
+                    if let analysis = review.package.analysis, analysis.ranModels.contains(.uhm) {
                         LabeledContent("Filler words", value: "\(analysis.fillers.count)")
                     }
                 }
                 .fixedSize()
 
-                if let analysis = review.package.analysis, !analysis.speakers.isEmpty {
+                if let analysis = review.package.analysis, analysis.ranModels.contains(.who), !analysis.speakers.isEmpty {
                     speakerSection(analysis)
                 }
                 titleSection

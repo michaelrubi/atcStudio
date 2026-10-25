@@ -23,6 +23,10 @@ final class ModelManager {
 
     var allReady: Bool { PipelineModel.allCases.allSatisfy { status[$0] == .ready } }
 
+    func areReady(_ selected: Set<PipelineModel>) -> Bool {
+        selected.isEmpty || selected.allSatisfy { status[$0] == .ready }
+    }
+
     func refresh() {
         for model in PipelineModel.allCases where !isWorking {
             status[model] = model.isDownloaded ? .ready : .missing
@@ -37,14 +41,15 @@ final class ModelManager {
         return made
     }
 
-    /// Downloads whatever is missing, then loads every model once for the Neural Engine.
-    func downloadAll() {
+    /// Downloads the specified models if missing, then warms them up for the Neural Engine.
+    func download(_ modelsToDownload: Set<PipelineModel>) {
         guard !isWorking else { return }
         isWorking = true
         message = nil
         Task {
             defer { isWorking = false }
-            for model in PipelineModel.allCases where !model.isDownloaded {
+            let missing = PipelineModel.allCases.filter { modelsToDownload.contains($0) && !$0.isDownloaded }
+            for model in missing {
                 status[model] = .downloading(0)
                 do {
                     try await model.download { fraction in
@@ -62,7 +67,7 @@ final class ModelManager {
 
             message = "Restoration Station: Preparing models for this Mac's Neural Engine…"
             do {
-                try await pipeline().warmUp { model, fraction in
+                try await pipeline().warmUp(models: modelsToDownload) { model, fraction in
                     Task { @MainActor [weak self] in
                         self?.status[model] = fraction < 1 ? .preparing : .ready
                     }
@@ -72,6 +77,14 @@ final class ModelManager {
                 message = "Models downloaded, but preparing them failed: \(error.localizedDescription)"
             }
         }
+    }
+
+    func downloadAll() {
+        download(Set(PipelineModel.allCases))
+    }
+
+    func downloadSingle(_ model: PipelineModel) {
+        download([model])
     }
 }
 
@@ -90,7 +103,12 @@ struct ModelsView: View {
 
             VStack(spacing: 0) {
                 ForEach(PipelineModel.allCases) { model in
-                    ModelRow(model: model, status: models.status[model] ?? .missing)
+                    ModelRow(
+                        model: model,
+                        status: models.status[model] ?? .missing,
+                        isWorking: models.isWorking,
+                        onDownload: { models.downloadSingle(model) }
+                    )
                     if model != PipelineModel.allCases.last { Divider() }
                 }
             }
@@ -129,6 +147,8 @@ struct ModelsView: View {
 private struct ModelRow: View {
     let model: PipelineModel
     let status: ModelManager.Status
+    var isWorking = false
+    var onDownload: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -139,7 +159,15 @@ private struct ModelRow: View {
             Spacer()
             switch status {
             case .missing:
-                Text("Not downloaded").foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Text("Not downloaded").foregroundStyle(.secondary)
+                    if let onDownload {
+                        Button("Download", action: onDownload)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(isWorking)
+                    }
+                }
             case .downloading(let fraction):
                 ProgressView(value: fraction).frame(width: 140)
                 Text("\(Int(fraction * 100))%").monospacedDigit().frame(width: 40, alignment: .trailing)
@@ -149,7 +177,15 @@ private struct ModelRow: View {
             case .ready:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
             case .failed(let message):
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).help(message)
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).help(message)
+                    if let onDownload {
+                        Button("Retry", action: onDownload)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(isWorking)
+                    }
+                }
             }
         }
         .padding(.vertical, 10)

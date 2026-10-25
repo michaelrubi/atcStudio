@@ -108,6 +108,33 @@ import Testing
         #expect(!ExportLocation.folder(URL(filePath: base.path + "_Rising"), isNamedFor: "Hope", date: date))
     }
 
+    @Test func partialModelPackageSkipsUnrunSections() throws {
+        let analysis = EpisodeAnalysis(
+            masterURL: URL(filePath: "/x.mp3"), introOffset: 0, mainEnd: 60, totalDuration: 60,
+            words: [], turns: [], speakerCount: 1, fillers: [], suggestedTitles: [], summary: "",
+            ranModels: [.clear])
+        let p = EpisodePackage(analysis: analysis, fallbackTitle: "Sunday Service")
+        #expect(!p.episodeInfo.contains("SPEAKERS:"))
+        #expect(!p.episodeInfo.contains("FILLER WORD REPORT"))
+        #expect(!p.episodeInfo.contains("FULL TRANSCRIPT:"))
+
+        let root = FileManager.default.temporaryDirectory.appending(path: "ATCExportPartial-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("mp3".utf8).write(to: root.appending(path: EpisodePackageExporter.masterName))
+
+        let exported = try EpisodePackageExporter.export(p, artworkPath: nil, in: root)
+        #expect(!FileManager.default.fileExists(atPath: exported.appending(path: EpisodePackageExporter.transcriptName).path))
+        #expect(FileManager.default.fileExists(atPath: exported.appending(path: EpisodePackageExporter.infoName).path))
+    }
+
+    @Test func pipelineModelNormalization() {
+        #expect(PipelineModel.normalized([.align, .title]) == [])
+        #expect(PipelineModel.normalized([.align, .title, .voz]) == [.align, .title, .voz])
+        #expect(PipelineModel.normalized([.clear, .who]) == [.clear, .who])
+        #expect(PipelineModel.normalized([.voz, .clear]) == [.voz, .clear])
+    }
+
     private static let onePixelPNG = Data(base64Encoded:
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")!
 }

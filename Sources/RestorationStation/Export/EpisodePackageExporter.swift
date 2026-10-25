@@ -30,7 +30,7 @@ public enum EpisodePackageExporter {
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
 
         let transcript = folder.appending(path: transcriptName)
-        if package.analysis != nil {
+        if package.analysis?.ranModels.contains(.voz) == true && !(package.analysis?.words.isEmpty ?? true) {
             try Data(package.webVTT.utf8).write(to: transcript, options: .atomic)
         } else {
             try? fm.removeItem(at: transcript)

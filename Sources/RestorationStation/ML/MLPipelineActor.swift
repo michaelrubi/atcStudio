@@ -19,13 +19,22 @@ public actor MLPipelineActor {
         /// Saved speaker names, passed to `Voz` with the template vocabulary.
         public var speakerNames: [String]
         public var output: URL
+        public var models: Set<PipelineModel>
 
-        public init(source: URL, trim: TrimRange, template: Template, speakerNames: [String], output: URL) {
+        public init(
+            source: URL,
+            trim: TrimRange,
+            template: Template,
+            speakerNames: [String],
+            output: URL,
+            models: Set<PipelineModel> = Set(PipelineModel.allCases)
+        ) {
             self.source = source
             self.trim = trim
             self.template = template
             self.speakerNames = speakerNames
             self.output = output
+            self.models = models
         }
     }
 
@@ -58,7 +67,31 @@ public actor MLPipelineActor {
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: work) }
 
-        func stage(_ message: String, _ range: ClosedRange<Double>) -> @Sendable (Double) -> Void {
+        let activeModels = PipelineModel.normalized(input.models)
+
+        // Dynamic progress calculation based on active models.
+        var stageWeights: [(id: String, weight: Double)] = [("trim", 2)]
+        if activeModels.contains(.clear) { stageWeights.append(("clear", 23)) }
+        stageWeights.append(("mix", 20))
+        if activeModels.contains(.who) { stageWeights.append(("who", 10)) }
+        if activeModels.contains(.voz) { stageWeights.append(("voz", 25)) }
+        if activeModels.contains(.align) && activeModels.contains(.voz) { stageWeights.append(("align", 5)) }
+        if activeModels.contains(.uhm) { stageWeights.append(("uhm", 7)) }
+        if activeModels.contains(.title) && activeModels.contains(.voz) && Self.titleRuntimeAvailable {
+            stageWeights.append(("title", 8))
+        }
+
+        let totalWeight = max(1.0, stageWeights.reduce(0) { $0 + $1.weight })
+        var stageRanges: [String: ClosedRange<Double>] = [:]
+        var accum = 0.0
+        for (id, weight) in stageWeights {
+            let next = accum + weight / totalWeight
+            stageRanges[id] = accum...next
+            accum = next
+        }
+
+        func stage(_ id: String, _ message: String) -> @Sendable (Double) -> Void {
+            let range = stageRanges[id] ?? 0...1
             onUpdate(.init(message: "Restoration Station: \(message)", fraction: range.lowerBound))
             return { f in
                 onUpdate(.init(message: "Restoration Station: \(message)",
@@ -66,56 +99,92 @@ public actor MLPipelineActor {
             }
         }
 
-        // 1. Cut the kept part, then clean it. Everything after this is timed on `clean`.
+        // 1. Cut the kept part. Clean it only if `Clear` is active.
         let cut = work.appending(path: "main_cut.wav")
-        let cutting = stage("Trimming the message…", 0...0.02)
+        let cutting = stage("trim", "Trimming the message…")
         try await ffmpeg.run([
             "-i", input.source.path, "-map", "0:a:0",
             "-af", "atrim=start=\(seconds(input.trim.start)):end=\(seconds(input.trim.end)),asetpts=PTS-STARTPTS",
             "-ac", "1", "-ar", "48000", "-c:a", "pcm_f32le", "-y", cut.path,
         ], duration: input.trim.duration, progress: cutting)
 
-        let clean = work.appending(path: "main_clean.wav")
-        let cleaning = stage("Cleaning sanctuary acoustics…", 0.02...0.25)
-        try await clear.enhance(
-            path: cut.path, to: clean.path,
-            options: .init(strength: .full, mastering: .bypass, sampleRate: 48_000, channelMode: .mono)
-        ) { cleaning($0.fraction) }
+        let clean: URL
+        if activeModels.contains(.clear) {
+            let enhanced = work.appending(path: "main_clean.wav")
+            let cleaning = stage("clear", "Cleaning sanctuary acoustics…")
+            try await clear.enhance(
+                path: cut.path, to: enhanced.path,
+                options: .init(strength: .full, mastering: .bypass, sampleRate: 48_000, channelMode: .mono)
+            ) { cleaning($0.fraction) }
+            clean = enhanced
+        } else {
+            clean = cut
+        }
         try Task.checkCancellation()
 
         // 2. Stitch bumpers and master. The intro offset comes back exact.
-        let mixing = stage("Mixing bumpers and mastering to -16 LUFS…", 0.25...0.45)
+        let mixing = stage("mix", "Mixing bumpers and mastering to -16 LUFS…")
         let composition = try await AudioCompositionService(ffmpeg: ffmpeg)
             .compose(mainAudio: clean, template: input.template, to: input.output) { mixing($0.fraction) }
 
         // 3. Who is speaking.
-        _ = stage("Finding who is speaking…", 0.45...0.55)
-        let diarization = try await who.diarize(contentsOf: clean)
-            .keepingSpeakers(minimumShare: Self.minimumSpeakerShare)
+        let diarizationTurns: [SpeakerTurn]
+        let speakerCount: Int
+        if activeModels.contains(.who) {
+            _ = stage("who", "Finding who is speaking…")
+            let diarization = try await who.diarize(contentsOf: clean)
+                .keepingSpeakers(minimumShare: Self.minimumSpeakerShare)
+            diarizationTurns = diarization.turns.map { SpeakerTurn(start: $0.start, end: $0.end, speaker: $0.speaker) }
+            speakerCount = diarization.speakerCount
+        } else {
+            diarizationTurns = []
+            speakerCount = 1
+        }
         try Task.checkCancellation()
 
         // 4. Transcript, with the church's own words as hints.
-        let transcribing = stage("Writing the transcript…", 0.55...0.8)
-        let vocabulary = Self.vocabulary(template: input.template, speakerNames: input.speakerNames)
-        let transcript = try await loadedVoz().transcribe(clean, vocabulary: vocabulary) {
-            transcribing($0.fractionCompleted)
+        var words: [TimedWord] = []
+        var transcriptText = ""
+        if activeModels.contains(.voz) {
+            let transcribing = stage("voz", "Writing the transcript…")
+            let vocabulary = Self.vocabulary(template: input.template, speakerNames: input.speakerNames)
+            let transcript = try await loadedVoz().transcribe(clean, vocabulary: vocabulary) {
+                transcribing($0.fractionCompleted)
+            }
+            words = transcript.words.map { TimedWord(text: $0.text, start: $0.start, end: $0.end) }
+            transcriptText = transcript.text
         }
 
-        // 5. Tighten word timings.
-        _ = stage("Lining up every word…", 0.8...0.85)
-        let samples16k = try await decodeMono16k(clean, in: work)
-        let rough = transcript.words.map { WordTiming(text: $0.text, start: $0.start, end: $0.end) }
-        let refined = (try? await align.isSupported(languageCode: Self.languageCode)) == true && !samples16k.isEmpty
-            ? try await align.refine(rough, audio: samples16k, sampleRate: 16_000, languageCode: Self.languageCode)
-            : rough
+        // 5. Tighten word timings (only if Align is active and transcript exists).
+        let needSamples = (activeModels.contains(.align) && !words.isEmpty) || activeModels.contains(.uhm)
+        let samples16k = needSamples ? (try await decodeMono16k(clean, in: work)) : []
+
+        if activeModels.contains(.align), !words.isEmpty, !samples16k.isEmpty {
+            _ = stage("align", "Lining up every word…")
+            let rough = words.map { WordTiming(text: $0.text, start: $0.start, end: $0.end) }
+            let refined = (try? await align.isSupported(languageCode: Self.languageCode)) == true
+                ? try await align.refine(rough, audio: samples16k, sampleRate: 16_000, languageCode: Self.languageCode)
+                : rough
+            words = refined.map { TimedWord(text: $0.text, start: $0.start, end: $0.end) }
+        }
 
         // 6. Fillers and long hesitations.
-        let finding = stage("Counting filler words…", 0.85...0.92)
-        let fillers = try await uhm.analyze(samples: samples16k, sampleRate: 16_000) { finding($0) }
+        var fillers: [FillerMark] = []
+        if activeModels.contains(.uhm), !samples16k.isEmpty {
+            let finding = stage("uhm", "Counting filler words…")
+            let result = try await uhm.analyze(samples: samples16k, sampleRate: 16_000) { finding($0) }
+            fillers = result.fillers.map { FillerMark(start: $0.start, end: $0.end, kind: $0.type?.rawValue) }
+        }
 
         // 7. Titles and summary.
-        _ = stage("Suggesting titles and a summary…", 0.92...0.99)
-        let (suggestedTitles, summary) = try await suggestTitles(for: transcript.text)
+        var suggestedTitles: [String] = []
+        var summary = ""
+        if activeModels.contains(.title), !transcriptText.isEmpty {
+            _ = stage("title", "Suggesting titles and a summary…")
+            let (titles, desc) = try await suggestTitles(for: transcriptText)
+            suggestedTitles = titles
+            summary = desc
+        }
 
         onUpdate(.init(message: "Restoration Station: Done.", fraction: 1))
         return EpisodeAnalysis.shifted(
@@ -123,35 +192,48 @@ public actor MLPipelineActor {
             introOffset: composition.introOffsetSeconds,
             mainEnd: composition.plan.mainEnd,
             totalDuration: composition.totalDurationSeconds,
-            mainWords: refined.map { TimedWord(text: $0.text, start: $0.start, end: $0.end) },
-            mainTurns: diarization.turns.map { SpeakerTurn(start: $0.start, end: $0.end, speaker: $0.speaker) },
-            speakerCount: diarization.speakerCount,
-            mainFillers: fillers.fillers.map { FillerMark(start: $0.start, end: $0.end, kind: $0.type?.rawValue) },
+            mainWords: words,
+            mainTurns: diarizationTurns,
+            speakerCount: speakerCount,
+            mainFillers: fillers,
             suggestedTitles: suggestedTitles,
-            summary: summary)
+            summary: summary,
+            ranModels: activeModels)
     }
 
     // MARK: - Warm-up
 
-    /// Loads every model once so Core ML specializes it for this Mac's Neural Engine
-    /// now, not during the first real episode (about 20 s for Voz alone).
-    public func warmUp(progress: @escaping @Sendable (PipelineModel, Double) -> Void = { _, _ in }) async throws {
+    /// Loads models so Core ML specializes them for this Mac's Neural Engine.
+    public func warmUp(
+        models: Set<PipelineModel> = Set(PipelineModel.allCases),
+        progress: @escaping @Sendable (PipelineModel, Double) -> Void = { _, _ in }
+    ) async throws {
         let second = [Float](repeating: 0, count: 16_000)
-        progress(.voz, 0)
-        _ = try await loadedVoz()
-        progress(.voz, 1)
-        progress(.clear, 0)
-        _ = try? await clear.enhance(channels: [[Float](repeating: 0, count: 48_000)], sampleRate: 48_000,
-                                     options: .init(mastering: .bypass))
-        progress(.clear, 1)
-        progress(.who, 0)
-        _ = try? await who.diarize(samples: second + second, sampleRate: 16_000)
-        progress(.who, 1)
-        progress(.uhm, 0)
-        _ = try? await uhm.analyze(samples: second, sampleRate: 16_000)
-        progress(.uhm, 1)
-        progress(.align, 1)
-        if Self.titleRuntimeAvailable {
+        if models.contains(.voz) {
+            progress(.voz, 0)
+            _ = try await loadedVoz()
+            progress(.voz, 1)
+        }
+        if models.contains(.clear) {
+            progress(.clear, 0)
+            _ = try? await clear.enhance(channels: [[Float](repeating: 0, count: 48_000)], sampleRate: 48_000,
+                                         options: .init(mastering: .bypass))
+            progress(.clear, 1)
+        }
+        if models.contains(.who) {
+            progress(.who, 0)
+            _ = try? await who.diarize(samples: second + second, sampleRate: 16_000)
+            progress(.who, 1)
+        }
+        if models.contains(.uhm) {
+            progress(.uhm, 0)
+            _ = try? await uhm.analyze(samples: second, sampleRate: 16_000)
+            progress(.uhm, 1)
+        }
+        if models.contains(.align) {
+            progress(.align, 1)
+        }
+        if models.contains(.title), Self.titleRuntimeAvailable {
             progress(.title, 0)
             _ = try await loadedTitles()
             progress(.title, 1)

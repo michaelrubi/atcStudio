@@ -7,6 +7,7 @@ struct ATCStudioApp: App {
     @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
     @State private var library = Library.load()
     @State private var models = ModelManager()
+    @State private var updater = UpdateManager()
 
     var body: some Scene {
         WindowGroup("ATC Studio") {
@@ -15,6 +16,7 @@ struct ATCStudioApp: App {
                     ContentView()
                         .environment(library)
                         .environment(models)
+                        .environment(updater)
                 } else {
                     ContentUnavailableView(
                         "Restoration Station could not open its database",
@@ -28,6 +30,7 @@ struct ATCStudioApp: App {
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About ATC Studio") { AppDelegate.showAbout() }
+                Button("Check for Updates…") { updater.checkForUpdates(userInitiated: true) }
             }
         }
     }
@@ -67,11 +70,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 struct ContentView: View {
     @Environment(ModelManager.self) private var models
+    @Environment(UpdateManager.self) private var updater
     @State private var showModelSheet = false
     /// Offer the model download once. The MP3 path works without models, so don't nag.
     @AppStorage("offeredModelDownload") private var offeredModelDownload = false
 
     var body: some View {
+        @Bindable var updater = updater
         TabView {
             Tab("Workspace", systemImage: "waveform") {
                 WorkspaceView()
@@ -87,15 +92,24 @@ struct ContentView: View {
             }
         }
         .padding()
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                UpdateToolbarButton()
+            }
+        }
         .onAppear {
             if !models.allReady && !offeredModelDownload {
                 offeredModelDownload = true
                 showModelSheet = true
             }
+            updater.checkOnLaunchIfNeeded()
         }
         .sheet(isPresented: $showModelSheet) {
             ModelsView { showModelSheet = false }
                 .frame(width: 560)
+        }
+        .sheet(isPresented: $updater.isShowingSheet) {
+            UpdateSheet()
         }
     }
 }
