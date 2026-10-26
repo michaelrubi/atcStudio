@@ -27,10 +27,13 @@ public enum ExportLocation {
         return Int(name.dropFirst(base.count + 1)).map { $0 >= 2 } ?? false
     }
 
-    static func baseName(title: String, date: Date) -> String {
+    public static func dateString(_ date: Date) -> String {
         let parts = Calendar.current.dateComponents([.year, .month, .day], from: date) // local day, not UTC
-        let day = String(format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!)
-        return "\(day)_\(sanitize(title))"
+        return String(format: "%04d-%02d-%02d", parts.year!, parts.month!, parts.day!)
+    }
+
+    static func baseName(title: String, date: Date) -> String {
+        "\(dateString(date))_\(sanitize(title))"
     }
 
     /// Letters and digits kept, everything else becomes `_`, runs collapsed, max 60 characters.

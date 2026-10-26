@@ -24,8 +24,8 @@ struct GuideView: View {
                     )
                     GuideStep(
                         number: 4,
-                        title: "Review and export",
-                        detail: "Pick a suggested title, assign speaker names, review the transcript and chapters, and click Save Episode Package to export the mastered MP3, Podbean show notes, transcript, and artwork."
+                        title: "Review, save, and publish to PodBean",
+                        detail: "Pick a suggested title, assign speaker names, click Save Changes to write ID3v2.3 tags and artwork into the MP3, and click Publish to PodBean… to upload your episode as a draft or live post without opening a browser."
                     )
                 }
 

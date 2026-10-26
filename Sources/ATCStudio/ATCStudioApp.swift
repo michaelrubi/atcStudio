@@ -8,6 +8,7 @@ struct ATCStudioApp: App {
     @State private var library = Library.load()
     @State private var models = ModelManager()
     @State private var updater = UpdateManager()
+    @State private var publishing = PublishingAccountManager()
     @State private var selectedTab: AppTab = .workspace
 
     var body: some Scene {
@@ -18,6 +19,7 @@ struct ATCStudioApp: App {
                         .environment(library)
                         .environment(models)
                         .environment(updater)
+                        .environment(publishing)
                 } else {
                     ContentUnavailableView(
                         "Restoration Station could not open its database",
@@ -37,6 +39,11 @@ struct ATCStudioApp: App {
                 Button("ATC Studio Guide") { selectedTab = .guide }
                     .keyboardShortcut("?", modifiers: .command)
             }
+        }
+
+        Settings {
+            PublishingSettingsView()
+                .environment(publishing)
         }
     }
 }

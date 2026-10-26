@@ -5,8 +5,10 @@ import SwiftUI
 /// After a run: name each voice, pick a title, fix the summary, and save the package.
 struct EpisodeReviewView: View {
     @Environment(Library.self) private var library
+    @Environment(PublishingAccountManager.self) private var publishing
     @Bindable var review: EpisodeReview
     @State private var player = PreviewPlayer()
+    @State private var showPublishSheet = false
 
     var body: some View {
         GroupBox {
@@ -33,6 +35,9 @@ struct EpisodeReviewView: View {
             .padding(4)
         }
         .onDisappear { player.stop() }
+        .sheet(isPresented: $showPublishSheet) {
+            PodbeanPublishSheet(review: review, isPresented: $showPublishSheet)
+        }
     }
 
     // MARK: - Speakers
@@ -116,8 +121,43 @@ struct EpisodeReviewView: View {
                     review.copiedNotes = true
                 }
                 Button("Play Episode", systemImage: "play.circle") { NSWorkspace.shared.open(review.masterURL) }
+
+                if review.publishResult == nil {
+                    if publishing.hasCredentials {
+                        Button("Publish to PodBean…", systemImage: "antenna.radiowaves.left.and.right") {
+                            showPublishSheet = true
+                        }
+                        .disabled(review.hasChanges)
+                        .help(review.hasChanges ? "Save changes first" : "Upload and publish this episode to PodBean")
+                    } else {
+                        SettingsLink {
+                            Label("Set up PodBean in Settings", systemImage: "antenna.radiowaves.left.and.right")
+                        }
+                    }
+                }
+
                 if review.copiedNotes {
                     Text("Copied.").foregroundStyle(.secondary)
+                }
+            }
+            if let published = review.publishResult {
+                HStack(spacing: 12) {
+                    Label(
+                        "Published to PodBean (\(published.status.label)) on \(published.publishedAt.formatted(date: .abbreviated, time: .shortened))",
+                        systemImage: "checkmark.seal.fill"
+                    )
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.green)
+
+                    if let permalink = published.permalinkURL {
+                        Link("Open in PodBean", destination: permalink)
+                            .font(.callout)
+                    }
+                }
+                if let skipped = published.skippedArtworkReason {
+                    Text(skipped)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             Text(review.folder.path(percentEncoded: false))
@@ -128,6 +168,176 @@ struct EpisodeReviewView: View {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                     .textSelection(.enabled)
+            }
+        }
+    }
+}
+
+/// Modal sheet for reviewing show notes, choosing Draft vs Publish Now, and uploading to PodBean.
+private struct PodbeanPublishSheet: View {
+    @Environment(PublishingAccountManager.self) private var publishing
+    @Bindable var review: EpisodeReview
+    @Binding var isPresented: Bool
+    @State private var status: PublishStatus = .draft
+    @State private var progress: PublishProgress?
+    @State private var errorMessage: String?
+    @State private var publishTask: Task<Void, Never>?
+
+    private var isUploading: Bool {
+        publishTask != nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: "antenna.radiowaves.left.and.right.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Publish to PodBean").font(.title2.weight(.semibold))
+                    Text("Uploads master_episode.mp3 and creates the episode on your PodBean account.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+
+            if let published = review.publishResult {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label(
+                            "Published to PodBean (\(published.status.label)) on \(published.publishedAt.formatted(date: .abbreviated, time: .shortened))",
+                            systemImage: "checkmark.seal.fill"
+                        )
+                        .font(.headline)
+                        .foregroundStyle(.green)
+
+                        if let skipped = published.skippedArtworkReason {
+                            Text(skipped)
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let permalink = published.permalinkURL {
+                            Link("Open in PodBean →", destination: permalink)
+                                .font(.callout.weight(.medium))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(6)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    LabeledContent("Title") {
+                        Text(review.package.title)
+                            .fontWeight(.medium)
+                    }
+                    if !review.package.speakerList.isEmpty {
+                        LabeledContent("Speakers") {
+                            Text(review.package.speakerList.joined(separator: ", "))
+                        }
+                    }
+
+                    Text("Show Notes Preview").font(.subheadline.weight(.semibold))
+                    ScrollView {
+                        Text(review.package.showNotes)
+                            .font(.callout)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                            .padding(8)
+                    }
+                    .frame(minHeight: 110, maxHeight: 180)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(.quaternary.opacity(0.4)))
+
+                    Picker("Publication Status", selection: $status) {
+                        Text("Draft (Recommended)").tag(PublishStatus.draft)
+                        Text("Publish Now").tag(PublishStatus.publish)
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(isUploading)
+                }
+
+                if let progress {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ProgressView(value: progress.fraction)
+                        Text(progress.message)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                }
+
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                        .textSelection(.enabled)
+                }
+            }
+
+            HStack {
+                Spacer()
+                if isUploading {
+                    Button("Cancel", role: .cancel) {
+                        publishTask?.cancel()
+                        publishTask = nil
+                        progress = nil
+                    }
+                } else if review.publishResult != nil {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                } else {
+                    Button("Cancel", role: .cancel) {
+                        isPresented = false
+                    }
+                    .keyboardShortcut(.cancelAction)
+
+                    Button(status == .draft ? "Upload Draft" : "Publish Episode") {
+                        startPublish()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+        }
+        .padding(20)
+        .frame(width: 520)
+    }
+
+    private func startPublish() {
+        guard let credentials = publishing.credentials, credentials.isValid else {
+            errorMessage = "Check your PodBean Client ID and Secret in Settings."
+            return
+        }
+        errorMessage = nil
+        progress = PublishProgress(message: "Starting upload…", fraction: 0)
+        let currentPackage = review.package
+        let folder = review.folder
+        let chosenStatus = status
+
+        publishTask = Task {
+            defer { publishTask = nil }
+            do {
+                let publisher = PodbeanPublisher(credentials: credentials)
+                let result = try await publisher.publish(
+                    package: currentPackage,
+                    in: folder,
+                    status: chosenStatus
+                ) { update in
+                    Task { @MainActor in
+                        self.progress = update
+                    }
+                }
+                review.recordPublished(result)
+                progress = nil
+            } catch is CancellationError {
+                progress = nil
+            } catch {
+                progress = nil
+                errorMessage = error.localizedDescription
             }
         }
     }
@@ -183,6 +393,7 @@ final class EpisodeReview {
     var package: EpisodePackage
     private(set) var folder: URL
     private(set) var saved: EpisodePackage?
+    private(set) var publishResult: PublishResult?
     let artworkPath: String?
     var error: String?
     var copiedNotes = false
@@ -194,6 +405,7 @@ final class EpisodeReview {
         self.package = package
         self.folder = folder
         self.artworkPath = artworkPath
+        self.publishResult = PublishResult.load(from: folder)
     }
 
     func binding(for speaker: Int) -> Binding<String> {
@@ -217,10 +429,15 @@ final class EpisodeReview {
             }
             folder = try EpisodePackageExporter.export(package, artworkPath: artworkPath, in: folder)
             saved = package
+            publishResult = PublishResult.load(from: folder)
             error = nil
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    func recordPublished(_ result: PublishResult) {
+        publishResult = result
     }
 
     private func isDefaultName(_ name: String) -> Bool {

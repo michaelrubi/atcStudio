@@ -100,6 +100,28 @@ public struct FFmpegRunner: Sendable {
             state.cancel()
         }
     }
+
+    /// Synchronously runs the executable with `arguments` (used for fast stream-copy tagging and inspection).
+    @discardableResult
+    public func runSync(_ arguments: [String]) throws -> String {
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = ["-hide_banner"] + arguments
+        process.standardInput = FileHandle.nullDevice
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        let outData = stdout.fileHandleForReading.readDataToEndOfFile()
+        let errData = stderr.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationReason == .exit, process.terminationStatus == 0 else {
+            let log = String(decoding: errData, as: UTF8.self)
+            throw Failure.failed(status: process.terminationStatus, log: String(log.suffix(4000)))
+        }
+        return String(decoding: outData.isEmpty ? errData : outData, as: UTF8.self)
+    }
 }
 
 /// Shared between the pipe handlers, the termination handler, and cancellation.

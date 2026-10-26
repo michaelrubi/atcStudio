@@ -135,6 +135,71 @@ import Testing
         #expect(PipelineModel.normalized([.voz, .clear]) == [.voz, .clear])
     }
 
+    @Test func tagMasterWritesID3AndSkipsUnchangedRewrite() throws {
+        guard let ffmpeg = try? FFmpegRunner.locate(),
+              let ffprobe = try? FFmpegRunner.locate(tool: "ffprobe") else { return }
+
+        let root = FileManager.default.temporaryDirectory.appending(path: "ATCID3-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        var p = Self.package()
+        let initialFolder = ExportLocation.newFolder(title: "raw", date: p.date, root: root)
+        try FileManager.default.createDirectory(at: initialFolder, withIntermediateDirectories: true)
+
+        let rawMP3 = initialFolder.appending(path: EpisodePackageExporter.masterName)
+        try ffmpeg.runSync([
+            "-loglevel", "error", "-f", "lavfi", "-i", "sine=f=440:d=0.3",
+            "-c:a", "libmp3lame", "-b:a", "128k", "-id3v2_version", "3", "-y", rawMP3.path,
+        ])
+
+        let art = root.appending(path: "art.png")
+        try Self.onePixelPNG.write(to: art)
+
+        let folder = try EpisodePackageExporter.export(p, artworkPath: art.path, in: initialFolder)
+        let masterURL = folder.appending(path: EpisodePackageExporter.masterName)
+
+        let probeJSON = try ffprobe.runSync([
+            "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", masterURL.path,
+        ])
+        let probeData = Data(probeJSON.utf8)
+        let parsed = try #require(try JSONSerialization.jsonObject(with: probeData) as? [String: Any])
+        let format = try #require(parsed["format"] as? [String: Any])
+        let tags = try #require(format["tags"] as? [String: String])
+        #expect(tags["title"] == "**Hope** Rising")
+        #expect(tags["artist"] == "Pastor John, Speaker 2")
+        #expect(tags["comment"] == "A message about # hope.")
+        #expect(tags["date"] == ExportLocation.dateString(p.date))
+
+        let streams = try #require(parsed["streams"] as? [[String: Any]])
+        let hasAttachedPic = streams.contains { stream in
+            (stream["codec_name"] as? String) == "mjpeg"
+                && ((stream["disposition"] as? [String: Any])?["attached_pic"] as? Int) == 1
+        }
+        #expect(hasAttachedPic)
+
+        // Set a known modification date in the past, then save again with no changes: must not rewrite.
+        let pastDate = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes([.modificationDate: pastDate], ofItemAtPath: masterURL.path)
+        let secondFolder = try EpisodePackageExporter.export(p, artworkPath: nil, in: folder)
+        #expect(secondFolder == folder)
+        let modAfterUnchanged = try FileManager.default.attributesOfItem(atPath: masterURL.path)[.modificationDate] as? Date
+        #expect(modAfterUnchanged == pastDate)
+
+        // Changing a speaker name re-tags the file and updates its modification date.
+        p.speakerNames[1] = "Pastor Sarah"
+        _ = try EpisodePackageExporter.export(p, artworkPath: nil, in: folder)
+        let modAfterEdit = try FileManager.default.attributesOfItem(atPath: masterURL.path)[.modificationDate] as? Date
+        #expect(modAfterEdit != pastDate)
+
+        let updatedProbe = try ffprobe.runSync([
+            "-v", "quiet", "-print_format", "json", "-show_format", masterURL.path,
+        ])
+        let updatedFormat = try #require(
+            (try JSONSerialization.jsonObject(with: Data(updatedProbe.utf8)) as? [String: Any])?["format"] as? [String: Any]
+        )
+        let updatedTags = try #require(updatedFormat["tags"] as? [String: String])
+        #expect(updatedTags["artist"] == "Pastor John, Pastor Sarah")
+    }
+
     private static let onePixelPNG = Data(base64Encoded:
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")!
 }
