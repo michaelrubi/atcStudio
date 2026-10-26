@@ -144,8 +144,20 @@ final class UpdateManager {
                         try await ReleaseUpdater.stageVerifiedApp(fromDMG: dmgURL)
                     }.value
                     try? FileManager.default.removeItem(at: dmgURL.deletingLastPathComponent())
+                    // A detached task ignores cancellation, so check again before the swap commits to quitting.
+                    try Task.checkCancellation()
                     try ReleaseUpdater.launchAtomicSwapAndRelaunch(stagedApp: stagedApp, targetApp: targetApp)
+                    isShowingSheet = false
+                    for window in NSApplication.shared.windows {
+                        for sheet in window.sheets {
+                            window.endSheet(sheet)
+                        }
+                    }
                     NSApplication.shared.terminate(nil)
+                    // Guarantee process exit even if AppKit delays sheet dismissal so the updater script can swap the bundle.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        Darwin.exit(0)
+                    }
                 } else {
                     status = .downloadedDMG(release, dmgURL)
                     NSWorkspace.shared.open(dmgURL)
@@ -161,6 +173,14 @@ final class UpdateManager {
     func cancel() {
         activeTask?.cancel()
         activeTask = nil
+        switch status {
+        case .downloading(let release, _), .verifying(let release):
+            status = .available(release)
+        case .checking:
+            status = .idle
+        default:
+            break
+        }
     }
 }
 
