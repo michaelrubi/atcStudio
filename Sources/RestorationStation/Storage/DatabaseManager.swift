@@ -57,9 +57,9 @@ public final class DatabaseManager: Sendable {
                 t.column("artwork_path", .text)
                 t.column("custom_vocabulary", .text).notNull().defaults(to: "")
                 t.column("intro_lead_in_sec", .double).notNull().defaults(to: 3.0)
-                t.column("ducking_db", .double).notNull().defaults(to: -14.0)
+                t.column("ducking_db", .double).notNull().defaults(to: -24.0)
                 t.column("duck_ramp_sec", .double).notNull().defaults(to: 1.5)
-                t.column("intro_swell_db", .double).notNull().defaults(to: -6.0)
+                t.column("intro_swell_db", .double).notNull().defaults(to: -24.0)
                 t.column("intro_swell_sec", .double).notNull().defaults(to: 1.5)
                 t.column("crossfade_sec", .double).notNull().defaults(to: 2.0)
                 t.column("outro_underlap_sec", .double).notNull().defaults(to: 3.0)
@@ -81,14 +81,29 @@ public final class DatabaseManager: Sendable {
             let now = Date()
             try db.execute(literal: """
                 INSERT INTO templates (name, custom_vocabulary, created_at, updated_at)
-                VALUES ('Sunday Sermon',
+                VALUES ('Teaching',
                         'As The Church, ATC, Hallelujah, Selah, Yahweh, Gethsemane, Ecclesiastes',
                         \(now), \(now))
                 """)
             try db.execute(literal: """
                 INSERT INTO templates (name, custom_vocabulary, created_at, updated_at)
-                VALUES ('As The Church Podcast', 'As The Church, ATC, As The Church Podcast', \(now), \(now))
+                VALUES ('Podcast', 'As The Church, ATC, As The Church Podcast', \(now), \(now))
                 """)
+        }
+
+        migrator.registerMigration("v2_podcast_and_teaching_defaults") { db in
+            try db.execute(sql: """
+                UPDATE templates SET name = 'Teaching'
+                WHERE name = 'Sunday Sermon' COLLATE NOCASE
+                  AND NOT EXISTS (SELECT 1 FROM templates WHERE name = 'Teaching' COLLATE NOCASE)
+                """)
+            try db.execute(sql: """
+                UPDATE templates SET name = 'Podcast'
+                WHERE name = 'As The Church Podcast' COLLATE NOCASE
+                  AND NOT EXISTS (SELECT 1 FROM templates WHERE name = 'Podcast' COLLATE NOCASE)
+                """)
+            try db.execute(sql: "UPDATE templates SET ducking_db = -24.0 WHERE ducking_db = -14.0")
+            try db.execute(sql: "UPDATE templates SET intro_swell_db = -24.0 WHERE intro_swell_db = -6.0")
         }
 
         return migrator

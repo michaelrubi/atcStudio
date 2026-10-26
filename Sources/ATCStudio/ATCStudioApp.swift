@@ -8,12 +8,13 @@ struct ATCStudioApp: App {
     @State private var library = Library.load()
     @State private var models = ModelManager()
     @State private var updater = UpdateManager()
+    @State private var selectedTab: AppTab = .workspace
 
     var body: some Scene {
         WindowGroup("ATC Studio") {
             Group {
                 if let library {
-                    ContentView()
+                    ContentView(selectedTab: $selectedTab)
                         .environment(library)
                         .environment(models)
                         .environment(updater)
@@ -32,8 +33,20 @@ struct ATCStudioApp: App {
                 Button("About ATC Studio") { AppDelegate.showAbout() }
                 Button("Check for Updates…") { updater.checkForUpdates(userInitiated: true) }
             }
+            CommandGroup(replacing: .help) {
+                Button("ATC Studio Guide") { selectedTab = .guide }
+                    .keyboardShortcut("?", modifiers: .command)
+            }
         }
     }
+}
+
+enum AppTab: Hashable {
+    case workspace
+    case templates
+    case speakers
+    case models
+    case guide
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -71,24 +84,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct ContentView: View {
     @Environment(ModelManager.self) private var models
     @Environment(UpdateManager.self) private var updater
+    @Binding var selectedTab: AppTab
     @State private var showModelSheet = false
     /// Offer the model download once. The MP3 path works without models, so don't nag.
     @AppStorage("offeredModelDownload") private var offeredModelDownload = false
 
     var body: some View {
         @Bindable var updater = updater
-        TabView {
-            Tab("Workspace", systemImage: "waveform") {
+        TabView(selection: $selectedTab) {
+            Tab("Workspace", systemImage: "waveform", value: .workspace) {
                 WorkspaceView()
             }
-            Tab("Templates", systemImage: "rectangle.stack") {
+            Tab("Templates", systemImage: "rectangle.stack", value: .templates) {
                 TemplatesView()
             }
-            Tab("Speakers", systemImage: "person.2") {
+            Tab("Speakers", systemImage: "person.2", value: .speakers) {
                 SpeakersView()
             }
-            Tab("Models", systemImage: "cpu") {
+            Tab("Models", systemImage: "cpu", value: .models) {
                 ScrollView { ModelsView() }
+            }
+            Tab("Guide", systemImage: "book", value: .guide) {
+                GuideView()
             }
         }
         .padding()

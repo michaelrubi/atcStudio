@@ -11,12 +11,12 @@ import Testing
 
     @Test func seedsDefaultTemplates() throws {
         let templates = try db.templates()
-        #expect(templates.map(\.name) == ["As The Church Podcast", "Sunday Sermon"])
-        let sermon = try #require(templates.first { $0.name == "Sunday Sermon" })
-        #expect(sermon.introLeadInSec == 3.0)
-        #expect(sermon.duckingDb == -14.0)
-        #expect(sermon.crossfadeSec == 2.0)
-        #expect(sermon.vocabularyTerms.contains("Selah"))
+        #expect(templates.map(\.name) == ["Podcast", "Teaching"])
+        let teaching = try #require(templates.first { $0.name == "Teaching" })
+        #expect(teaching.introLeadInSec == 3.0)
+        #expect(teaching.duckingDb == -24.0)
+        #expect(teaching.crossfadeSec == 2.0)
+        #expect(teaching.vocabularyTerms.contains("Selah"))
     }
 
     @Test func migrationIsIdempotentOnDisk() throws {
@@ -41,8 +41,8 @@ import Testing
     }
 
     @Test func rejectsDuplicateTemplateNameIgnoringCase() throws {
-        #expect(throws: DatabaseManagerError.duplicateName("sunday sermon")) {
-            try db.save(Template(name: "sunday sermon"))
+        #expect(throws: DatabaseManagerError.duplicateName("teaching")) {
+            try db.save(Template(name: "teaching"))
         }
     }
 

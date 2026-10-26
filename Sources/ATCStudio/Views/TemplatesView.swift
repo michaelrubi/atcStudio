@@ -115,18 +115,25 @@ private struct TemplateEditor: View {
                 Text("Church name, podcast name, pastors' names, and Bible words. This helps the transcript spell them right.")
             }
 
-            Section("Intro mix") {
+            Section {
                 SliderRow(title: "Music lead-in", value: $draft.introLeadInSec, range: 0...10, unit: .seconds)
-                SliderRow(title: "Music under voice", value: $draft.duckingDb, range: -30...0, unit: .decibels)
-                SliderRow(title: "Duck ramp", value: $draft.duckRampSec, range: 0.1...5, unit: .seconds)
-                SliderRow(title: "Swell level", value: $draft.introSwellDb, range: -20...0, unit: .decibels)
-                SliderRow(title: "Swell length", value: $draft.introSwellSec, range: 0...5, unit: .seconds)
+                SliderRow(title: "Music fade-in", value: $draft.duckRampSec, range: 0.1...5, unit: .seconds)
+                SliderRow(title: "Music under voice (max)", value: $draft.duckingDb, range: -40...0, unit: .decibels)
+                SliderRow(title: "Hold after voice", value: $draft.introSwellSec, range: 0...5, unit: .seconds)
                 SliderRow(title: "Crossfade to message", value: $draft.crossfadeSec, range: 0...5, unit: .seconds)
+            } header: {
+                Text("Intro mix")
+            } footer: {
+                Text("Music fades in from silence to the target dB plateau before the voice-over starts, holds steady for the entire voice-over and post-voice hold, then crossfades into the message.")
             }
 
-            Section("Outro mix") {
+            Section {
                 SliderRow(title: "Music under last words", value: $draft.outroUnderlapSec, range: 0...10, unit: .seconds)
                 SliderRow(title: "Fade out", value: $draft.outroFadeSec, range: 0...10, unit: .seconds)
+            } header: {
+                Text("Outro mix")
+            } footer: {
+                Text("Music fades in to the same plateau level under the speaker's final words, holds steady under any outro voice-over, and fades directly to silence. Final output is mastered to -16 LUFS.")
             }
 
             Section {

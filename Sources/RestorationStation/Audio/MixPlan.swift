@@ -17,15 +17,13 @@ func linearGain(dB: Double) -> Double { pow(10, dB / 20) }
 /// and the template's envelope settings. Pure math, no ffmpeg.
 ///
 /// Intro (music + VO):
-///   music 0 dB for lead-in → ducks over the ramp as the VO starts → VO ends →
-///   music rises to the swell level and holds for the swell time → crossfade into main.
+///   music fades in from silence to the plateau (`duckingDb`, e.g. -24 dB) during the
+///   lead-in → holds steady under the VO and post-VO buffer → crossfades into main.
 /// Outro (music + VO):
-///   music fades in to the duck level under the last `outroUnderlap` seconds of main →
-///   VO plays when main ends → music rises to 0 dB over the ramp → fades out.
+///   music fades in to the plateau (`duckingDb`) under the last `outroUnderlap` seconds
+///   of main → holds steady under the VO and post-VO buffer → fades out to silence.
 public struct MixPlan: Sendable, Equatable {
     public static let sampleRate = 44_100.0
-    /// How long the music takes to rise from the duck level to the swell level.
-    static let swellRise = 0.5
 
     public let mainDuration: Double
 
@@ -72,20 +70,23 @@ public struct MixPlan: Sendable, Equatable {
             let leadIn = max(0, template.introLeadInSec)
             let voEnd = leadIn + vo
             let swellSec = max(0, template.introSwellSec)
-            let swell = linearGain(dB: template.introSwellDb)
             introVOStart = leadIn
             introOffset = voEnd + swellSec
             introMusicGain = [
-                GainPoint(0, 1),
-                GainPoint(leadIn, 1),
-                GainPoint(min(leadIn + rampSec, voEnd), duck),
+                GainPoint(0, 0),
+                GainPoint(min(rampSec, leadIn), duck),
+                GainPoint(leadIn, duck),
                 GainPoint(voEnd, duck),
-                GainPoint(voEnd + min(Self.swellRise, swellSec), swell),
+                GainPoint(introOffset, duck),
             ]
         case (true, nil):
+            let leadIn = max(0, template.introLeadInSec)
             introVOStart = 0
-            introOffset = max(0, template.introLeadInSec)
-            introMusicGain = [GainPoint(0, 1)]
+            introOffset = leadIn
+            introMusicGain = [
+                GainPoint(0, 0),
+                GainPoint(min(rampSec, leadIn), duck),
+            ]
         case (false, let vo?):
             introVOStart = 0
             introOffset = vo
@@ -113,7 +114,7 @@ public struct MixPlan: Sendable, Equatable {
                 GainPoint(0, 0),
                 GainPoint(underlap, duck),
                 GainPoint(voEnd, duck),
-                GainPoint(voEnd + rampSec, 1),
+                GainPoint(voEnd + rampSec, duck),
                 GainPoint(voEnd + rampSec + fade, 0),
             ]
         case (false, let vo?):

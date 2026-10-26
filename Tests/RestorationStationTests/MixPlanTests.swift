@@ -3,26 +3,26 @@ import Testing
 @testable import RestorationStation
 
 @Suite struct MixPlanTests {
-    let template = Template(name: "Test") // defaults: lead-in 3, duck -14 over 1.5, swell -6 for 1.5, xfade 2, outro 3/3
+    let template = Template(name: "Test") // defaults: lead-in 3, duck -24 over 1.5, hold 1.5, xfade 2, outro 3/3
 
     @Test func fullIntroAndOutroTimings() {
         let plan = MixPlan(template: template, mainDuration: 600,
                            hasIntroMusic: true, introVODuration: 10,
                            hasOutroMusic: true, outroVODuration: 8)
         #expect(plan.introVOStart == 3)
-        #expect(plan.introOffset == 14.5) // 3 lead-in + 10 VO + 1.5 swell
+        #expect(plan.introOffset == 14.5) // 3 lead-in + 10 VO + 1.5 hold
         #expect(plan.crossfade == 2)
         #expect(plan.introBedLength == 16.5)
         #expect(plan.mainEnd == 614.5)
         #expect(plan.outroStart == 611.5)
         #expect(plan.outroVOStart == 3)
-        #expect(plan.outroLength == 15.5) // 3 underlap + 8 VO + 1.5 ramp + 3 fade
+        #expect(plan.outroLength == 15.5) // 3 underlap + 8 VO + 1.5 hold + 3 fade
         #expect(plan.totalDuration == 627)
 
-        let duck = pow(10, -14.0 / 20)
-        #expect(plan.introMusicGain.map(\.time) == [0, 3, 4.5, 13, 13.5])
-        #expect(plan.introMusicGain[2].gain == duck)
-        #expect(plan.outroMusicGain.map(\.gain) == [0, duck, duck, 1, 0])
+        let duck = pow(10, -24.0 / 20)
+        #expect(plan.introMusicGain.map(\.time) == [0, 1.5, 3, 13, 14.5])
+        #expect(plan.introMusicGain.map(\.gain) == [0, duck, duck, duck, duck])
+        #expect(plan.outroMusicGain.map(\.gain) == [0, duck, duck, duck, 0])
     }
 
     @Test func noBumpersMeansNoOffset() {
@@ -39,9 +39,10 @@ import Testing
         let plan = MixPlan(template: template, mainDuration: 60,
                            hasIntroMusic: true, introVODuration: nil,
                            hasOutroMusic: false, outroVODuration: nil)
+        let duck = pow(10, -24.0 / 20)
         #expect(plan.introOffset == 3)
         #expect(plan.crossfade == 2)
-        #expect(plan.introMusicGain == [GainPoint(0, 1)])
+        #expect(plan.introMusicGain == [GainPoint(0, 0), GainPoint(1.5, duck)])
     }
 
     @Test func voiceOnlyIntroJoinsWithoutCrossfade() {
