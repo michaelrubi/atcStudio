@@ -2,7 +2,7 @@ import Foundation
 
 /// What the volunteer settled on in the review view, plus the run's timing.
 /// Turns into the text of `transcript.vtt`, `episode_info.txt`, and the show notes.
-public struct EpisodePackage: Sendable, Equatable {
+public struct EpisodePackage: Sendable, Equatable, Codable {
     public var title: String
     public var suggestedTitles: [String]
     public var summary: String
@@ -40,6 +40,42 @@ public struct EpisodePackage: Sendable, Equatable {
     }
 
     public static func defaultName(for speaker: Int) -> String { "Speaker \(speaker + 1)" }
+
+    // MARK: - episode.json
+
+    /// Stored in the episode folder so the review can be opened again later.
+    public static let recordFileName = "episode.json"
+
+    /// Reads `episode.json` from `folder` if present.
+    public static func load(from folder: URL) -> EpisodePackage? {
+        guard let data = try? Data(contentsOf: folder.appending(path: recordFileName)) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(EpisodePackage.self, from: data)
+    }
+
+    /// Writes `episode.json` into `folder` atomically.
+    public func save(in folder: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(self).write(to: folder.appending(path: Self.recordFileName), options: .atomic)
+    }
+
+    /// Episode folders under `root` that have an `episode.json`, newest first.
+    public static func recent(in root: URL = ExportLocation.root, limit: Int = 10) -> [(folder: URL, package: EpisodePackage)] {
+        let folders = (try? FileManager.default.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: [.contentModificationDateKey], options: .skipsHiddenFiles)) ?? []
+        func modified(_ url: URL) -> Date {
+            (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+        }
+        return folders
+            .sorted { modified($0) > modified($1) }
+            .lazy
+            .compactMap { folder in load(from: folder).map { (folder, $0) } }
+            .prefix(limit)
+            .map { $0 }
+    }
 
     public func name(for speaker: Int) -> String {
         let typed = speakerNames[speaker]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

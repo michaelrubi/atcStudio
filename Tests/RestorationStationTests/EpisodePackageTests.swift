@@ -200,6 +200,34 @@ import Testing
         #expect(updatedTags["artist"] == "Pastor John, Pastor Sarah")
     }
 
+    @Test func episodeJSONRoundTrips() throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "ATCRecord-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let package = Self.package()
+        try package.save(in: dir)
+        #expect(EpisodePackage.load(from: dir) == package)
+    }
+
+    @Test func recentIsNewestFirstAndSkipsFoldersWithoutRecord() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appending(path: "ATCRecent-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        for (i, name) in ["old", "new", "empty"].enumerated() {
+            let folder = root.appending(path: name)
+            try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+            if name != "empty" {
+                var p = Self.package()
+                p.title = name
+                try p.save(in: folder)
+            }
+            try fm.setAttributes([.modificationDate: Date(timeIntervalSince1970: Double(1_000 * (i + 1)))],
+                                 ofItemAtPath: folder.path)
+        }
+        #expect(EpisodePackage.recent(in: root).map(\.package.title) == ["new", "old"])
+        #expect(EpisodePackage.recent(in: root, limit: 1).map(\.package.title) == ["new"])
+    }
+
     private static let onePixelPNG = Data(base64Encoded:
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")!
 }

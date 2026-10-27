@@ -66,7 +66,14 @@ struct WorkspaceView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     switch step {
-                    case .add: dropZone
+                    case .add:
+                        dropZone
+                        RecentEpisodesList { folder in
+                            if let review = EpisodeReview(reopening: folder) {
+                                job.open(review)
+                                step = .review
+                            }
+                        }
                     case .trim: trimStep
                     case .make: makeStep
                     case .review: reviewStep
@@ -361,6 +368,12 @@ final class EpisodeJob {
         if case .finished = state { true } else { false }
     }
 
+    /// Shows a past episode's review. There is no source file, so Trim and Make stay locked.
+    func open(_ review: EpisodeReview) {
+        reset()
+        state = .finished(review)
+    }
+
     /// Back to an empty workspace for the next file. The finished episode stays in its export folder.
     func reset() {
         analysisTask?.cancel()
@@ -510,5 +523,66 @@ private struct StepBar: View {
 
     private func fill(for step: WorkspaceStep) -> AnyShapeStyle {
         step == current ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary)
+    }
+}
+
+/// Past episodes from the export folder, newest first, so a volunteer can fix or publish one later.
+private struct RecentEpisodesList: View {
+    struct Item: Identifiable {
+        var folder: URL
+        var title: String
+        var date: Date
+        var duration: Double
+        var published: PublishResult?
+        var id: URL { folder }
+    }
+
+    let onOpen: (URL) -> Void
+    @State private var items: [Item] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !items.isEmpty {
+                Text("Recent Episodes").font(.title3.weight(.semibold))
+                VStack(spacing: 0) {
+                    ForEach(items) { item in
+                        if item.id != items.first?.id { Divider() }
+                        row(item)
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: 10).fill(.quaternary.opacity(0.4)))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .task {
+            items = await Task.detached {
+                EpisodePackage.recent().map {
+                    Item(folder: $0.folder, title: $0.package.title, date: $0.package.date,
+                         duration: $0.package.totalDuration, published: PublishResult.load(from: $0.folder))
+                }
+            }.value
+        }
+    }
+
+    private func row(_ item: Item) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title).font(.headline).lineLimit(1)
+                Text("\(item.date.formatted(date: .abbreviated, time: .omitted)) · \(Timecode.string(item.duration))")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let published = item.published {
+                Label(published.status == .draft ? "Draft on PodBean" : "Published", systemImage: "checkmark.seal.fill")
+                    .font(.callout)
+                    .foregroundStyle(.green)
+            } else {
+                Text("Not published").font(.callout).foregroundStyle(.secondary)
+            }
+            Button("Open") { onOpen(item.folder) }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 }

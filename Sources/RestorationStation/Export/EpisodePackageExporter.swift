@@ -16,7 +16,7 @@ public enum ExportError: LocalizedError, Equatable {
 }
 
 /// Writes the episode folder next to `master_episode.mp3`:
-/// `transcript.vtt`, `episode_info.txt`, and `artwork.jpg`, and tags `master_episode.mp3` with ID3v2.3 metadata.
+/// `transcript.vtt`, `episode_info.txt`, `episode.json`, and `artwork.jpg`, and tags `master_episode.mp3` with ID3v2.3 metadata.
 /// Safe to run again after edits: files are replaced and the folder follows the title.
 public enum EpisodePackageExporter {
     public static let masterName = "master_episode.mp3"
@@ -47,6 +47,7 @@ public enum EpisodePackageExporter {
             try? fm.removeItem(at: transcript)
         }
         try Data(package.episodeInfo.utf8).write(to: folder.appending(path: infoName), options: .atomic)
+        try package.save(in: folder)
         if let artworkPath, !artworkPath.isEmpty {
             try writeJPEG(from: URL(filePath: artworkPath), to: folder.appending(path: artworkName))
         }

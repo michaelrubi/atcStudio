@@ -422,6 +422,13 @@ final class EpisodeReview {
         self.publishResult = PublishResult.load(from: folder)
     }
 
+    /// Reopens a past episode from its `episode.json`. Its artwork is already in the folder.
+    convenience init?(reopening folder: URL) {
+        guard let package = EpisodePackage.load(from: folder) else { return nil }
+        self.init(package: package, folder: folder, artworkPath: nil)
+        saved = package
+    }
+
     func binding(for speaker: Int) -> Binding<String> {
         Binding { self.package.speakerNames[speaker] ?? "" } set: { self.package.speakerNames[speaker] = $0 }
     }
