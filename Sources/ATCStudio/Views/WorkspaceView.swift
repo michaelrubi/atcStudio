@@ -7,6 +7,7 @@ struct WorkspaceView: View {
     @Environment(Library.self) private var library
     @Environment(ModelManager.self) private var models
     @State private var job = EpisodeJob()
+    @State private var step = WorkspaceStep.add
     @State private var templateID: Template.ID?
     @State private var isPicking = false
     @State private var isTargeted = false
@@ -56,53 +57,115 @@ struct WorkspaceView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                dropZone
-                trimSection
-
-                HStack {
-                    Picker("Template", selection: $templateID) {
-                        ForEach(library.templates) { Text($0.name).tag($0.id) }
-                    }
-                    .frame(maxWidth: 280)
-
-                    toolSelectorMenu
-
-                    Spacer()
-                    if job.isRunning {
-                        Button("Cancel", role: .cancel) { job.cancel() }
-                    } else {
-                        Button("Make Episode") {
-                            guard let template else { return }
-                            do {
-                                let pipeline = runAIExtras && !effectiveModels.isEmpty && modelsAreReady ? try models.pipeline() : nil
-                                job.start(
-                                    template: template,
-                                    speakerNames: library.speakers.map(\.name),
-                                    pipeline: pipeline,
-                                    models: effectiveModels
-                                )
-                            } catch {
-                                job.fail(error.localizedDescription)
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.large)
-                        .disabled(!job.isReady || template == nil)
-                        .help(runAIExtras && !effectiveModels.isEmpty && modelsAreReady
-                              ? "Clean, mix, and master with the selected AI tools"
-                              : "Fast mode: trim, mix, and master only (no AI tools)")
+        VStack(spacing: 0) {
+            StepBar(current: $step, isReachable: isReachable)
+                .disabled(job.isRunning)
+                .padding([.horizontal, .top])
+                .padding(.bottom, 8)
+            Divider()
+            ScrollView {
+                VStack(spacing: 20) {
+                    switch step {
+                    case .add: dropZone
+                    case .trim: trimStep
+                    case .make: makeStep
+                    case .review: reviewStep
                     }
                 }
-
-                status
+                .padding()
             }
-            .padding()
         }
         .onAppear { if templateID == nil { templateID = library.templates.first?.id } }
+        .onChange(of: job.isFinished) { _, finished in if finished { step = .review } }
         .fileImporter(isPresented: $isPicking, allowedContentTypes: [.audio]) { result in
-            if case .success(let url) = result { job.select(url) }
+            if case .success(let url) = result { select(url) }
+        }
+    }
+
+    private func isReachable(_ step: WorkspaceStep) -> Bool {
+        switch step {
+        case .add: true
+        case .trim: job.source != nil
+        case .make: job.isReady
+        case .review: job.isFinished
+        }
+    }
+
+    private func select(_ url: URL) {
+        job.select(url)
+        step = .trim
+    }
+
+    // MARK: - Steps
+
+    private var trimStep: some View {
+        VStack(spacing: 20) {
+            dropZone
+            trimSection
+            HStack {
+                Spacer()
+                Button("Continue") { step = .make }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!job.isReady)
+            }
+        }
+    }
+
+    private var makeStep: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if let source = job.source {
+                LabeledContent("Audio", value: source.lastPathComponent)
+                LabeledContent("Message length", value: Timecode.string(job.trim.duration))
+            }
+            HStack {
+                Picker("Template", selection: $templateID) {
+                    ForEach(library.templates) { Text($0.name).tag($0.id) }
+                }
+                .frame(maxWidth: 280)
+
+                toolSelectorMenu
+
+                Spacer()
+                if job.isRunning {
+                    Button("Cancel", role: .cancel) { job.cancel() }
+                } else {
+                    Button("Make Episode") {
+                        guard let template else { return }
+                        do {
+                            let pipeline = runAIExtras && !effectiveModels.isEmpty && modelsAreReady ? try models.pipeline() : nil
+                            job.start(
+                                template: template,
+                                speakerNames: library.speakers.map(\.name),
+                                pipeline: pipeline,
+                                models: effectiveModels
+                            )
+                        } catch {
+                            job.fail(error.localizedDescription)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!job.isReady || template == nil)
+                    .help(runAIExtras && !effectiveModels.isEmpty && modelsAreReady
+                          ? "Clean, mix, and master with the selected AI tools"
+                          : "Fast mode: trim, mix, and master only (no AI tools)")
+                }
+            }
+            status
+        }
+    }
+
+    @ViewBuilder private var reviewStep: some View {
+        status
+        HStack {
+            Spacer()
+            Button("Start New Episode", systemImage: "plus") {
+                job.reset()
+                step = .add
+            }
         }
     }
 
@@ -208,7 +271,7 @@ struct WorkspaceView: View {
             .contentShape(Rectangle())
             .dropDestination(for: URL.self) { urls, _ in
                 guard let url = urls.first(where: \.isAudioFile), !job.isRunning else { return false }
-                job.select(url)
+                select(url)
                 return true
             } isTargeted: { isTargeted = $0 }
             .disabled(job.isRunning)
@@ -292,6 +355,19 @@ final class EpisodeJob {
 
     var isReady: Bool {
         if case .ready = analysis { true } else { false }
+    }
+
+    var isFinished: Bool {
+        if case .finished = state { true } else { false }
+    }
+
+    /// Back to an empty workspace for the next file. The finished episode stays in its export folder.
+    func reset() {
+        analysisTask?.cancel()
+        task?.cancel()
+        source = nil
+        analysis = .none
+        state = .idle
     }
 
     func select(_ url: URL) {
@@ -381,5 +457,58 @@ final class EpisodeJob {
 private extension URL {
     var isAudioFile: Bool {
         (try? resourceValues(forKeys: [.contentTypeKey]).contentType?.conforms(to: .audio)) ?? false
+    }
+}
+
+enum WorkspaceStep: Int, CaseIterable {
+    case add, trim, make, review
+
+    var title: String {
+        switch self {
+        case .add: "Add Audio"
+        case .trim: "Trim"
+        case .make: "Make"
+        case .review: "Review & Publish"
+        }
+    }
+}
+
+/// The four Workspace steps. A step is clickable once the work before it is done.
+private struct StepBar: View {
+    @Binding var current: WorkspaceStep
+    let isReachable: (WorkspaceStep) -> Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(WorkspaceStep.allCases, id: \.self) { step in
+                if step != .add {
+                    Rectangle().fill(.quaternary).frame(height: 1).frame(maxWidth: 40)
+                }
+                Button { current = step } label: {
+                    HStack(spacing: 6) {
+                        ZStack {
+                            Circle().fill(fill(for: step)).frame(width: 22, height: 22)
+                            if step.rawValue < current.rawValue && isReachable(step) {
+                                Image(systemName: "checkmark").font(.caption.bold())
+                            } else {
+                                Text("\(step.rawValue + 1)").font(.caption.bold())
+                            }
+                        }
+                        .foregroundStyle(step == current ? .white : .primary)
+                        Text(step.title)
+                            .fontWeight(step == current ? .semibold : .regular)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!isReachable(step))
+                .opacity(isReachable(step) ? 1 : 0.4)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func fill(for step: WorkspaceStep) -> AnyShapeStyle {
+        step == current ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary)
     }
 }
