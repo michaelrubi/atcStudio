@@ -73,7 +73,7 @@ struct WorkspaceView: View {
                     if job.isRunning {
                         Button("Cancel", role: .cancel) { job.cancel() }
                     } else {
-                        Button(runAIExtras && !effectiveModels.isEmpty && modelsAreReady ? "Make Episode" : "Make MP3") {
+                        Button("Make Episode") {
                             guard let template else { return }
                             do {
                                 let pipeline = runAIExtras && !effectiveModels.isEmpty && modelsAreReady ? try models.pipeline() : nil
@@ -90,6 +90,9 @@ struct WorkspaceView: View {
                         .buttonStyle(.borderedProminent)
                         .controlSize(.large)
                         .disabled(!job.isReady || template == nil)
+                        .help(runAIExtras && !effectiveModels.isEmpty && modelsAreReady
+                              ? "Clean, mix, and master with the selected AI tools"
+                              : "Fast mode: trim, mix, and master only (no AI tools)")
                     }
                 }
 
@@ -218,7 +221,7 @@ struct WorkspaceView: View {
         case .analyzing(let fraction):
             VStack(alignment: .leading, spacing: 8) {
                 ProgressView(value: fraction)
-                Text("Restoration Station: Detecting worship music and finding where the message starts and ends…").foregroundStyle(.secondary)
+                Text("Detecting worship music and finding where the message starts and ends…").foregroundStyle(.secondary)
             }
         case .ready(let profile, let music, let duration, let autoTrim, let contentTrim):
             if let source = job.source {
@@ -334,7 +337,7 @@ final class EpisodeJob {
     ) {
         guard let source, isReady else { return }
         let trim = trim
-        state = .running(.init(message: "Restoration Station: Getting ready…", fraction: 0))
+        state = .running(.init(message: "Getting ready…", fraction: 0))
         task = Task {
             do {
                 let date = Date()

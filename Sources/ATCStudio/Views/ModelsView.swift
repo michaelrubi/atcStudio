@@ -65,7 +65,7 @@ final class ModelManager {
                 }
             }
 
-            message = "Restoration Station: Preparing models for this Mac's Neural Engine…"
+            message = "Preparing models for this Mac's Neural Engine…"
             do {
                 try await pipeline().warmUp(models: modelsToDownload) { model, fraction in
                     Task { @MainActor [weak self] in
@@ -95,7 +95,7 @@ struct ModelsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Restoration Station Models").font(.title2.weight(.semibold))
+                Text("AI Models").font(.title2.weight(.semibold))
                 Text("ATC Studio uses six on-device models. They download once (about 0.9 GB), then work with no internet. Your audio never leaves this Mac.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

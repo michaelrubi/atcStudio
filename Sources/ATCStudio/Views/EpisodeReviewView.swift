@@ -13,7 +13,7 @@ struct EpisodeReviewView: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 16) {
-                Label("Restoration Station: Your episode is ready.", systemImage: "checkmark.seal.fill")
+                Label("Your episode is ready.", systemImage: "checkmark.seal.fill")
                     .font(.headline)
                     .foregroundStyle(.green)
                 HStack(spacing: 24) {
@@ -107,32 +107,42 @@ struct EpisodeReviewView: View {
     private var actions: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Button(review.hasChanges ? "Save Changes" : "Saved", systemImage: "square.and.arrow.down") {
-                    review.save(library: library)
+                if review.publishResult == nil && publishing.hasCredentials {
+                    Button("Publish to PodBean…", systemImage: "antenna.radiowaves.left.and.right") {
+                        // Publish uploads the saved files, so save any edits first.
+                        if review.hasChanges { review.save(library: library) }
+                        if !review.hasChanges { showPublishSheet = true }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .help("Save your changes, then upload this episode to PodBean")
+                    Button(review.hasChanges ? "Save Changes" : "Saved", systemImage: "square.and.arrow.down") {
+                        review.save(library: library)
+                    }
+                    .disabled(!review.hasChanges)
+                } else {
+                    Button(review.hasChanges ? "Save Changes" : "Saved", systemImage: "square.and.arrow.down") {
+                        review.save(library: library)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!review.hasChanges)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(!review.hasChanges)
-                Button("Reveal in Finder", systemImage: "folder") {
-                    NSWorkspace.shared.activateFileViewerSelecting([review.masterURL])
-                }
-                Button("Copy Show Notes", systemImage: "doc.on.doc") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(review.package.showNotes, forType: .string)
-                    review.copiedNotes = true
-                }
-                Button("Play Episode", systemImage: "play.circle") { NSWorkspace.shared.open(review.masterURL) }
 
-                if review.publishResult == nil {
-                    if publishing.hasCredentials {
-                        Button("Publish to PodBean…", systemImage: "antenna.radiowaves.left.and.right") {
-                            showPublishSheet = true
-                        }
-                        .disabled(review.hasChanges)
-                        .help(review.hasChanges ? "Save changes first" : "Upload and publish this episode to PodBean")
-                    } else {
-                        SettingsLink {
-                            Label("Set up PodBean in Settings", systemImage: "antenna.radiowaves.left.and.right")
-                        }
+                Menu("More", systemImage: "ellipsis.circle") {
+                    Button("Play Episode", systemImage: "play.circle") { NSWorkspace.shared.open(review.masterURL) }
+                    Button("Reveal in Finder", systemImage: "folder") {
+                        NSWorkspace.shared.activateFileViewerSelecting([review.masterURL])
+                    }
+                    Button("Copy Show Notes", systemImage: "doc.on.doc") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(review.package.showNotes, forType: .string)
+                        review.copiedNotes = true
+                    }
+                }
+                .fixedSize()
+
+                if review.publishResult == nil && !publishing.hasCredentials {
+                    SettingsLink {
+                        Label("Set up PodBean in Settings", systemImage: "antenna.radiowaves.left.and.right")
                     }
                 }
 

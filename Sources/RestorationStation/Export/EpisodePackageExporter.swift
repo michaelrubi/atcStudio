@@ -10,7 +10,7 @@ public enum ExportError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .unreadableArtwork(let name):
-            "Restoration Station could not read the artwork \"\(name)\". Pick it again in the Templates tab."
+            "ATC Studio could not read the artwork \"\(name)\". Pick it again in the Templates tab."
         }
     }
 }

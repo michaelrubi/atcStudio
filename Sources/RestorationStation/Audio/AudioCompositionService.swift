@@ -36,7 +36,7 @@ public enum CompositionError: LocalizedError, Equatable {
         case .missingFile(let label, let path):
             "The \(label) file is missing: \(path). Pick it again in the Templates tab."
         case .unreadableAudio(let name):
-            "Restoration Station could not read the audio in \"\(name)\"."
+            "ATC Studio could not read the audio in \"\(name)\"."
         }
     }
 }
@@ -59,7 +59,7 @@ public struct AudioCompositionService: Sendable {
         to output: URL,
         onUpdate: @escaping @Sendable (CompositionUpdate) -> Void = { _ in }
     ) async throws -> CompositionResult {
-        onUpdate(.init(message: "Restoration Station: Reading your audio…", fraction: 0))
+        onUpdate(.init(message: "Reading your audio…", fraction: 0))
 
         let introMusic = try stem(template.introMusicPath, label: "Intro Music")
         let introVO = try stem(template.introVoPath, label: "Intro Voice-Over")
@@ -94,7 +94,7 @@ public struct AudioCompositionService: Sendable {
         let graph = plan.filterGraph(inputs)
 
         // Pass 1: measure loudness of the full mix.
-        onUpdate(.init(message: "Restoration Station: Mixing bumpers and measuring loudness…", fraction: 0.02))
+        onUpdate(.init(message: "Mixing bumpers and measuring loudness…", fraction: 0.02))
         let measureLog = try await ffmpeg.run(
             inputArgs + [
                 "-filter_complex", graph + ";[prog]loudnorm=\(Self.loudnessTarget):print_format=json[out]",
@@ -102,7 +102,7 @@ public struct AudioCompositionService: Sendable {
             ],
             duration: plan.totalDuration
         ) { fraction in
-            onUpdate(.init(message: "Restoration Station: Mixing bumpers and measuring loudness…",
+            onUpdate(.init(message: "Mixing bumpers and measuring loudness…",
                            fraction: 0.02 + fraction * 0.48))
         }
 
@@ -114,7 +114,7 @@ public struct AudioCompositionService: Sendable {
             .appending(path: ".\(UUID().uuidString)-\(output.lastPathComponent)")
         defer { try? FileManager.default.removeItem(at: partial) }
 
-        onUpdate(.init(message: "Restoration Station: Mastering to -16 LUFS…", fraction: 0.5))
+        onUpdate(.init(message: "Mastering to -16 LUFS…", fraction: 0.5))
         try await ffmpeg.run(
             inputArgs + [
                 "-filter_complex", graph + ";[prog]\(loudnorm),aresample=\(Int(MixPlan.sampleRate))[out]",
@@ -124,12 +124,12 @@ public struct AudioCompositionService: Sendable {
             ],
             duration: plan.totalDuration
         ) { fraction in
-            onUpdate(.init(message: "Restoration Station: Mastering to -16 LUFS…", fraction: 0.5 + fraction * 0.5))
+            onUpdate(.init(message: "Mastering to -16 LUFS…", fraction: 0.5 + fraction * 0.5))
         }
 
         _ = try? FileManager.default.removeItem(at: output)
         try FileManager.default.moveItem(at: partial, to: output)
-        onUpdate(.init(message: "Restoration Station: Done.", fraction: 1))
+        onUpdate(.init(message: "Done.", fraction: 1))
         return CompositionResult(outputURL: output, plan: plan, mainTrim: keep)
     }
 

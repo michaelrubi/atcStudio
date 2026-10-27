@@ -10,7 +10,7 @@ public struct FFmpegRunner: Sendable {
         public var errorDescription: String? {
             switch self {
             case .notFound(let tool):
-                "Restoration Station could not find \(tool). For development, run: brew install ffmpeg"
+                "ATC Studio could not find \(tool). For development, run: brew install ffmpeg"
             case .failed(let status, let log):
                 "ffmpeg stopped with code \(status).\n\(log)"
             }

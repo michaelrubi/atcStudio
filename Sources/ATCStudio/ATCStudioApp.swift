@@ -22,7 +22,7 @@ struct ATCStudioApp: App {
                         .environment(publishing)
                 } else {
                     ContentUnavailableView(
-                        "Restoration Station could not open its database",
+                        "ATC Studio could not open its database",
                         systemImage: "exclamationmark.triangle",
                         description: Text(Library.loadError ?? "Unknown error"))
                 }

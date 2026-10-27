@@ -92,9 +92,9 @@ public actor MLPipelineActor {
 
         func stage(_ id: String, _ message: String) -> @Sendable (Double) -> Void {
             let range = stageRanges[id] ?? 0...1
-            onUpdate(.init(message: "Restoration Station: \(message)", fraction: range.lowerBound))
+            onUpdate(.init(message: message, fraction: range.lowerBound))
             return { f in
-                onUpdate(.init(message: "Restoration Station: \(message)",
+                onUpdate(.init(message: message,
                                fraction: range.lowerBound + min(1, max(0, f)) * (range.upperBound - range.lowerBound)))
             }
         }
@@ -186,7 +186,7 @@ public actor MLPipelineActor {
             summary = desc
         }
 
-        onUpdate(.init(message: "Restoration Station: Done.", fraction: 1))
+        onUpdate(.init(message: "Done.", fraction: 1))
         return EpisodeAnalysis.shifted(
             masterURL: composition.outputURL,
             introOffset: composition.introOffsetSeconds,
