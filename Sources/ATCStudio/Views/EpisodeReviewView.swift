@@ -136,6 +136,10 @@ struct EpisodeReviewView: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(review.package.showNotes, forType: .string)
                         review.copiedNotes = true
+                        Task {
+                            try? await Task.sleep(for: .seconds(2))
+                            review.copiedNotes = false
+                        }
                     }
                 }
                 .fixedSize()

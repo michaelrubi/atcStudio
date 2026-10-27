@@ -155,6 +155,9 @@ private struct ModelRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.name).font(.headline)
                 Text(model.purpose).font(.callout).foregroundStyle(.secondary)
+                if case .failed(let message) = status {
+                    Text(message).font(.caption).foregroundStyle(.orange).textSelection(.enabled)
+                }
             }
             Spacer()
             switch status {
@@ -176,9 +179,9 @@ private struct ModelRow: View {
                 Text("Preparing…").foregroundStyle(.secondary)
             case .ready:
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            case .failed(let message):
+            case .failed:
                 HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange).help(message)
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                     if let onDownload {
                         Button("Retry", action: onDownload)
                             .buttonStyle(.bordered)

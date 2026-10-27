@@ -24,6 +24,27 @@ struct TrimEditor: View {
         music.hasMusic && abs(autoTrim.start - effectiveContentTrim.start) + abs(autoTrim.end - effectiveContentTrim.end) > 1.0
     }
 
+    private enum TrimChoice { case auto, worship, whole, custom }
+
+    private var wholeFile: TrimRange { TrimRange(start: 0, end: sourceDuration) }
+
+    /// Which preset the current cut matches. Moving a cut point by hand makes it Custom.
+    private var choice: Binding<TrimChoice> {
+        Binding {
+            if trim == autoTrim { return .auto }
+            if hasDistinctWorshipTrim && trim == effectiveContentTrim { return .worship }
+            if trim == wholeFile { return .whole }
+            return .custom
+        } set: {
+            switch $0 {
+            case .auto: trim = autoTrim
+            case .worship: trim = effectiveContentTrim
+            case .whole: trim = wholeFile
+            case .custom: break
+            }
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -43,19 +64,22 @@ struct TrimEditor: View {
                     .padding(.leading, 4)
                 }
                 Spacer()
-                if hasDistinctWorshipTrim {
-                    Button("Message Only") { trim = autoTrim }
-                        .disabled(trim == autoTrim)
-                        .help("Trim out opening and closing worship music")
-                    Button("Keep Worship") { trim = effectiveContentTrim }
-                        .disabled(trim == effectiveContentTrim)
-                        .help("Keep worship music, trimming only room silence")
-                } else {
-                    Button("Auto Cut") { trim = autoTrim }
-                        .disabled(trim == autoTrim)
+                Picker("Cut", selection: choice) {
+                    if hasDistinctWorshipTrim {
+                        Text("Message Only").tag(TrimChoice.auto)
+                        Text("Keep Worship").tag(TrimChoice.worship)
+                    } else {
+                        Text("Auto Cut").tag(TrimChoice.auto)
+                    }
+                    Text("Whole File").tag(TrimChoice.whole)
+                    if choice.wrappedValue == .custom {
+                        Text("Custom").tag(TrimChoice.custom)
+                    }
                 }
-                Button("Keep Whole File") { trim = TrimRange(start: 0, end: sourceDuration) }
-                    .disabled(trim == TrimRange(start: 0, end: sourceDuration))
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .help("Message Only cuts the worship music. Keep Worship cuts only the quiet parts.")
             }
 
             LevelStrip(

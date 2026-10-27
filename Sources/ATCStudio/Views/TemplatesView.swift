@@ -124,7 +124,7 @@ private struct TemplateEditor: View {
             } header: {
                 Text("Intro mix")
             } footer: {
-                Text("Music fades in from silence to the target dB plateau before the voice-over starts, holds steady for the entire voice-over and post-voice hold, then crossfades into the message.")
+                Text("The music starts quiet and gets louder. It stays at one level while the intro voice plays. Then it fades into the message.")
             }
 
             Section {
@@ -133,7 +133,7 @@ private struct TemplateEditor: View {
             } header: {
                 Text("Outro mix")
             } footer: {
-                Text("Music fades in to the same plateau level under the speaker's final words, holds steady under any outro voice-over, and fades directly to silence. Final output is mastered to -16 LUFS.")
+                Text("The music comes in under the speaker's last words. It stays at one level under the outro voice, then fades out. The finished episode is set to standard podcast loudness.")
             }
 
             Section {
