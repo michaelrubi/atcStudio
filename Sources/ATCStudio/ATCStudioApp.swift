@@ -93,6 +93,8 @@ struct ContentView: View {
     @Environment(UpdateManager.self) private var updater
     @Binding var selectedTab: AppTab
     @State private var showModelSheet = false
+    /// Shared so the Templates tab can preview with the recording open in Workspace.
+    @State private var job = EpisodeJob()
     /// Offer the model download once. The MP3 path works without models, so don't nag.
     @AppStorage("offeredModelDownload") private var offeredModelDownload = false
 
@@ -115,6 +117,7 @@ struct ContentView: View {
                 GuideView()
             }
         }
+        .environment(job)
         .padding()
         .toolbar {
             ToolbarItem(placement: .automatic) {

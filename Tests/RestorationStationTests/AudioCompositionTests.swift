@@ -38,6 +38,29 @@ struct AudioCompositionTests {
         }
     }
 
+    @Test func previewMixesOneBumperWithAPieceOfTheMessage() async throws {
+        let introVO = try await tone("intro_bumper.wav", "sine=f=330:d=6")
+        let outroVO = try await tone("outro_bumper.wav", "sine=f=330:d=4")
+        let main = try await tone("sermon.wav", "sine=f=1000:d=60")
+        var template = Template(name: "Test") // crossfade 2, underlap 3
+        template.introVoPath = introVO.path
+        template.outroVoPath = outroVO.path
+        let service = AudioCompositionService(ffmpeg: runner)
+        let trim = TrimRange(start: 5, end: 50)
+
+        let intro = try await service.preview(.intro, mainAudio: main, template: template, trim: trim,
+                                              to: dir.appending(path: "intro.mp3"))
+        #expect(intro.mainTrim == TrimRange(start: 5, end: 17))
+        #expect(!intro.plan.hasOutro)
+        #expect(abs(intro.totalDurationSeconds - 16) < 0.001) // 6 bumper + 12 message - 2 crossfade
+
+        let outro = try await service.preview(.outro, mainAudio: main, template: template, trim: trim,
+                                              to: dir.appending(path: "outro.mp3"))
+        #expect(outro.mainTrim == TrimRange(start: 35, end: 50))
+        #expect(!outro.plan.hasIntro)
+        #expect(abs(outro.totalDurationSeconds - 19) < 0.001) // 15 message, then the 4 s bumper
+    }
+
     @Test func mainAudioLandsAtIntroOffset() async throws {
         // Low tones for bumpers (removed by the high-pass), a 1 kHz burst 3 s into the main audio.
         let introMusic = try await tone("intro_music.wav", "sine=f=220:d=30")

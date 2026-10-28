@@ -24,6 +24,7 @@ struct EpisodeReviewView: View {
                     }
                 }
                 .fixedSize()
+                transitionButtons
 
                 if let analysis = review.package.analysis, analysis.ranModels.contains(.who), !analysis.speakers.isEmpty {
                     speakerSection(analysis)
@@ -37,6 +38,34 @@ struct EpisodeReviewView: View {
         .onDisappear { player.stop() }
         .sheet(isPresented: $showPublishSheet) {
             PodbeanPublishSheet(review: review, isPresented: $showPublishSheet)
+        }
+    }
+
+    // MARK: - Transitions
+
+    /// Plays the seconds around each bumper join, so nobody has to scrub the whole episode.
+    @ViewBuilder private var transitionButtons: some View {
+        let package = review.package
+        let hasIntro = package.introOffset > 0
+        let hasOutro = package.totalDuration - package.mainEnd > 0.1
+        if hasIntro || hasOutro {
+            HStack {
+                if hasIntro {
+                    Button("Hear Intro", systemImage: "play.fill") {
+                        player.play(review.masterURL, from: package.introOffset - 8, until: package.introOffset + 6)
+                    }
+                    .help("Plays the end of the intro and the start of the message")
+                }
+                if hasOutro {
+                    Button("Hear Outro", systemImage: "play.fill") {
+                        player.play(review.masterURL, from: package.mainEnd - 12, until: package.totalDuration)
+                    }
+                    .help("Plays the end of the message and the outro")
+                }
+                if player.isPlaying {
+                    Button("Stop", systemImage: "stop.fill") { player.stop() }
+                }
+            }
         }
     }
 

@@ -222,6 +222,7 @@ final class PreviewPlayer {
     private var player: AVAudioPlayer?
     private var loadedURL: URL?
     private var stopTask: Task<Void, Never>?
+    private(set) var isPlaying = false
 
     func play(_ url: URL, from start: Double, for seconds: Double) {
         play(url, from: start, until: start + seconds)
@@ -237,15 +238,17 @@ final class PreviewPlayer {
         guard let player else { return }
         player.currentTime = max(0, start)
         player.play()
+        isPlaying = true
         stopTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(max(0, end - start)))
-            if !Task.isCancelled { self?.player?.pause() }
+            try? await Task.sleep(for: .seconds(max(0, min(end, player.duration) - start)))
+            if !Task.isCancelled { self?.stop() }
         }
     }
 
     func stop() {
         stopTask?.cancel()
         player?.pause()
+        isPlaying = false
     }
 }
 

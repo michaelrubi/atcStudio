@@ -70,9 +70,15 @@ struct TemplatesView: View {
 /// Edits a draft copy of one template. Changes are written on Save.
 private struct TemplateEditor: View {
     @Environment(Library.self) private var library
+    @Environment(EpisodeJob.self) private var job
     let template: Template
     @State private var draft: Template
     @State private var errorMessage: String?
+    @State private var player = PreviewPlayer()
+    @State private var previewTask: Task<Void, Never>?
+    @State private var rendering: AudioCompositionService.Transition?
+    @State private var previewFile: URL?
+    @State private var previewError: String?
 
     init(template: Template) {
         self.template = template
@@ -136,6 +142,8 @@ private struct TemplateEditor: View {
                 Text("The music comes in under the speaker's last words. It stays at one level under the outro voice, then fades out. The finished episode is set to standard podcast loudness.")
             }
 
+            previewSection
+
             Section {
                 HStack {
                     Button("Reset Mix to Defaults", action: resetMix)
@@ -151,6 +159,82 @@ private struct TemplateEditor: View {
         }
         .formStyle(.grouped)
         .errorAlert($errorMessage)
+        .onDisappear(perform: stopPreview)
+    }
+
+    // MARK: - Preview
+
+    @ViewBuilder private var previewSection: some View {
+        Section {
+            if let source = job.source, job.isReady {
+                HStack {
+                    previewButton("Hear Intro", .intro, source: source)
+                        .disabled(draft.introMusicPath == nil && draft.introVoPath == nil)
+                    previewButton("Hear Outro", .outro, source: source)
+                        .disabled(draft.outroMusicPath == nil && draft.outroVoPath == nil)
+                    if rendering != nil {
+                        ProgressView().controlSize(.small)
+                        Text("Mixing…").foregroundStyle(.secondary)
+                    }
+                    if player.isPlaying {
+                        Button("Stop", systemImage: "stop.fill") { player.stop() }
+                    }
+                }
+                if let previewError {
+                    Label(previewError, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .textSelection(.enabled)
+                }
+            } else {
+                Text("Add a recording in the Workspace tab first. Then you can hear the intro and outro here.")
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Hear the mix")
+        } footer: {
+            if let source = job.source, job.isReady {
+                Text("Uses the settings above, even before you save. Mixes only a few seconds of \"\(source.lastPathComponent)\", so it is fast.")
+            }
+        }
+    }
+
+    private func previewButton(_ title: String, _ transition: AudioCompositionService.Transition, source: URL) -> some View {
+        Button(title, systemImage: "play.fill") { preview(transition, source: source) }
+            .disabled(rendering != nil)
+    }
+
+    private func preview(_ transition: AudioCompositionService.Transition, source: URL) {
+        stopPreview()
+        rendering = transition
+        previewError = nil
+        let template = draft
+        let trim = job.trim
+        let output = FileManager.default.temporaryDirectory.appending(path: "atc-preview-\(UUID().uuidString).mp3")
+        previewTask = Task {
+            do {
+                let result = try await AudioCompositionService(ffmpeg: .locate())
+                    .preview(transition, mainAudio: source, template: template, trim: trim, to: output)
+                guard !Task.isCancelled else {
+                    try? FileManager.default.removeItem(at: output)
+                    return
+                }
+                previewFile = output
+                player.play(output, from: 0, until: result.totalDurationSeconds)
+            } catch is CancellationError {
+            } catch {
+                previewError = error.localizedDescription
+            }
+            if !Task.isCancelled { rendering = nil }
+        }
+    }
+
+    private func stopPreview() {
+        previewTask?.cancel()
+        previewTask = nil
+        rendering = nil
+        player.stop()
+        if let previewFile { try? FileManager.default.removeItem(at: previewFile) }
+        previewFile = nil
     }
 
     private func resetMix() {

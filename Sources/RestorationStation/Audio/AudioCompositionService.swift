@@ -133,6 +133,36 @@ public struct AudioCompositionService: Sendable {
         return CompositionResult(outputURL: output, plan: plan, mainTrim: keep)
     }
 
+    public enum Transition: Sendable {
+        case intro, outro
+    }
+
+    /// Mixes one bumper with a short piece of the message, so a template can be heard
+    /// in seconds without making the whole episode. The piece is long enough for the
+    /// longest crossfade (5 s) and outro underlap (10 s) the template sliders allow.
+    public func preview(
+        _ transition: Transition,
+        mainAudio: URL,
+        template: Template,
+        trim: TrimRange? = nil,
+        to output: URL
+    ) async throws -> CompositionResult {
+        let keep = Self.clamp(trim, to: try await Self.duration(of: mainAudio))
+        var bumper = template
+        let piece: TrimRange
+        switch transition {
+        case .intro:
+            bumper.outroMusicPath = nil
+            bumper.outroVoPath = nil
+            piece = TrimRange(start: keep.start, end: min(keep.end, keep.start + 12))
+        case .outro:
+            bumper.introMusicPath = nil
+            bumper.introVoPath = nil
+            piece = TrimRange(start: max(keep.start, keep.end - 15), end: keep.end)
+        }
+        return try await compose(mainAudio: mainAudio, template: bumper, trim: piece, to: output)
+    }
+
     /// Keeps the trim inside the file and at least 1 s long; nil means the whole file.
     static func clamp(_ trim: TrimRange?, to duration: Double) -> TrimRange {
         guard let trim else { return TrimRange(start: 0, end: duration) }

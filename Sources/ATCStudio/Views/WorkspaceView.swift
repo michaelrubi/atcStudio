@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 struct WorkspaceView: View {
     @Environment(Library.self) private var library
     @Environment(ModelManager.self) private var models
-    @State private var job = EpisodeJob()
+    @Environment(EpisodeJob.self) private var job
     @State private var step = WorkspaceStep.add
     @State private var templateID: Template.ID?
     @State private var isPicking = false
@@ -285,6 +285,7 @@ struct WorkspaceView: View {
     }
 
     @ViewBuilder private var trimSection: some View {
+        @Bindable var job = job
         switch job.analysis {
         case .none:
             EmptyView()
