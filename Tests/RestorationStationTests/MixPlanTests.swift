@@ -45,15 +45,26 @@ import Testing
         #expect(plan.introMusicGain == [GainPoint(0, 0), GainPoint(1.5, duck)])
     }
 
-    @Test func voiceOnlyIntroJoinsWithoutCrossfade() {
+    @Test func voiceOnlyIntroCrossfadesOverItsTail() {
         let plan = MixPlan(template: template, mainDuration: 60,
                            hasIntroMusic: false, introVODuration: 7,
                            hasOutroMusic: false, outroVODuration: 4)
+        #expect(plan.introOffset == 5) // main starts under the last 2 s of the bumper
+        #expect(plan.crossfade == 2)
+        #expect(plan.introBedLength == 7)
+        #expect(plan.outroStart == 62)
+        #expect(plan.totalDuration == 69)
+    }
+
+    @Test func voiceOnlyIntroJoinsStraightWhenCrossfadeIsOff() {
+        var noFade = template
+        noFade.crossfadeSec = 0
+        let plan = MixPlan(template: noFade, mainDuration: 60,
+                           hasIntroMusic: false, introVODuration: 7,
+                           hasOutroMusic: false, outroVODuration: nil)
         #expect(plan.introOffset == 7)
         #expect(plan.crossfade == 0)
         #expect(plan.introBedLength == 7)
-        #expect(plan.outroStart == 64)
-        #expect(plan.totalDuration == 71)
     }
 
     @Test func crossfadeAndUnderlapClampToShortMainAudio() {

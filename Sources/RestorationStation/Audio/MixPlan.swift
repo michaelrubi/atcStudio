@@ -65,6 +65,7 @@ public struct MixPlan: Sendable, Equatable {
         let duck = linearGain(dB: template.duckingDb)
 
         // MARK: Intro
+        let crossfadeSec = max(0, template.crossfadeSec)
         switch (hasIntroMusic, introVODuration) {
         case (true, let vo?):
             let leadIn = max(0, template.introLeadInSec)
@@ -88,19 +89,25 @@ public struct MixPlan: Sendable, Equatable {
                 GainPoint(min(rampSec, leadIn), duck),
             ]
         case (false, let vo?):
+            // Usually a finished bumper with its music mixed in: the main audio
+            // crossfades over its last seconds so the music never cuts off.
+            let overlap = min(crossfadeSec, vo / 2, mainDuration / 2)
             introVOStart = 0
-            introOffset = vo
+            introOffset = vo - overlap
             introMusicGain = []
         case (false, nil):
             introVOStart = 0
             introOffset = 0
             introMusicGain = []
         }
-        // A crossfade needs music to fade out of; a VO-only intro is joined straight.
-        crossfade = (hasIntroMusic && introOffset > 0)
-            ? min(max(0, template.crossfadeSec), mainDuration / 2)
-            : 0
-        introBedLength = introOffset > 0 ? introOffset + crossfade : 0
+        if hasIntroMusic {
+            crossfade = introOffset > 0 ? min(crossfadeSec, mainDuration / 2) : 0
+        } else if let vo = introVODuration {
+            crossfade = vo - introOffset
+        } else {
+            crossfade = 0
+        }
+        introBedLength = introOffset + crossfade
 
         // MARK: Outro
         let underlap = min(max(0, template.outroUnderlapSec), mainDuration)
