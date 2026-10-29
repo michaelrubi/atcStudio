@@ -196,7 +196,8 @@ extension MixPlan {
             }
             let bed = mix(parts, into: "bed")
             if crossfade > 0 {
-                chains.append("[\(bed)][main]acrossfade=d=\(seconds(crossfade)):c1=tri:c2=tri[body]")
+                // Only the bumper fades. Fading the message in too would swallow its first words.
+                chains.append("[\(bed)][main]acrossfade=d=\(seconds(crossfade)):c1=tri:c2=nofade[body]")
             } else {
                 chains.append("[\(bed)][main]concat=n=2:v=0:a=1[body]")
             }

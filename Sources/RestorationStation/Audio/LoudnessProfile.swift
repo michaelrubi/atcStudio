@@ -19,6 +19,16 @@ public struct LoudnessProfile: Sendable, Equatable {
 
     public var duration: Double { Double(levels.count) * window }
 
+    /// Quieter than this counts as silence when finding where a bumper ends.
+    static let silenceDb: Float = -60
+
+    /// Where the last sound ends. Bumpers often end in silence, and a crossfade
+    /// over silence is no fade at all.
+    public var soundEnd: Double {
+        guard let last = levels.lastIndex(where: { $0 > Self.silenceDb }) else { return duration }
+        return Double(last + 1) * window
+    }
+
     /// Decodes `url` once at 8 kHz mono and records the RMS level of every 50 ms.
     public static func measure(
         _ url: URL,

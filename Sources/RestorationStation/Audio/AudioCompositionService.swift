@@ -73,9 +73,9 @@ public struct AudioCompositionService: Sendable {
             template: template,
             mainDuration: keep.duration,
             hasIntroMusic: introMusic != nil,
-            introVODuration: try await introVO.asyncMap(Self.duration(of:)),
+            introVODuration: try await introVO.asyncMap(soundLength(of:)),
             hasOutroMusic: outroMusic != nil,
-            outroVODuration: try await outroVO.asyncMap(Self.duration(of:)))
+            outroVODuration: try await outroVO.asyncMap(soundLength(of:)))
 
         var inputFiles = [mainAudio]
         var inputs = StemInputs()
@@ -177,6 +177,14 @@ public struct AudioCompositionService: Sendable {
             throw CompositionError.missingFile(label: label, path: path)
         }
         return URL(filePath: path)
+    }
+
+    /// Length of a voice-over up to its last sound, so trailing silence does not
+    /// push the message later or swallow the crossfade.
+    private func soundLength(of url: URL) async throws -> Double {
+        let total = try await Self.duration(of: url)
+        let profile = try await LoudnessProfile.measure(url, ffmpeg: ffmpeg, duration: total)
+        return min(total, profile.soundEnd)
     }
 
     public static func duration(of url: URL) async throws -> Double {
